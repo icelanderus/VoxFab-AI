@@ -1,6 +1,9 @@
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, screen, clipboard } = require('electron');
+const { keyboard, Key } = require('@nut-tree-fork/nut-js');
 const path = require('path');
 const fs = require('fs');
+
+keyboard.config.autoDelayMs = 50;
 
 // ============================================
 // Simple JSON Config Store (replaces electron-store)
@@ -165,6 +168,16 @@ function registerGlobalShortcut() {
       mainWindow.show();
     }
   });
+
+  // Global hotkey for Selection Analysis
+  globalShortcut.register(isMac ? 'Command+Alt+A' : 'Ctrl+Alt+A', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('trigger-analyze');
+      if (!mainWindow.isVisible()) {
+        mainWindow.show();
+      }
+    }
+  });
 }
 
 // IPC Handlers
@@ -195,9 +208,50 @@ ipcMain.handle('save-settings', (event, settings) => {
   return true;
 });
 
-// Track the last externally focused window handle
+// Track the last externally focused window
 let lastExternalWindowHandle = null;
+let lastExternalWindowName = null;
 const { spawn, exec } = require('child_process');
+
+ipcMain.handle('capture-selection', async () => {
+  const isMac = process.platform === 'darwin';
+  const originalText = clipboard.readText();
+  
+  try {
+    const isWin = process.platform === 'win32';
+    const handle = lastExternalWindowHandle || (isWin ? '0' : '');
+    const scriptPath = isWin 
+      ? path.join(__dirname, 'scripts', 'copy-selection.ps1')
+      : path.join(__dirname, 'scripts', 'macos-copy.scpt'); // Placeholder for now
+
+    if (isWin) {
+      await new Promise((resolve) => {
+        exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -TargetHandle "${handle}"`, { windowsHide: true }, (error) => {
+          if (error) console.error('PowerShell Copy Error:', error);
+          resolve();
+        });
+      });
+    } else {
+       // Mac implementation (simplified for now)
+       exec(`osascript -e 'tell application "${handle}" to activate' -e 'tell application "System Events" to keystroke "c" using command down'`);
+       await new Promise(r => setTimeout(r, 400));
+    }
+    
+    const capturedText = clipboard.readText();
+    
+    // Restore original clipboard
+    clipboard.writeText(originalText);
+    
+    return {
+      text: capturedText,
+      windowContext: lastExternalWindowName || lastExternalWindowHandle
+    };
+  } catch (error) {
+    console.error('Capture selection failed:', error);
+    clipboard.writeText(originalText);
+    return null;
+  }
+});
 
 // Start a persistent window monitor process
 let monitorProcess = null;
@@ -231,11 +285,14 @@ function startWindowMonitor() {
     for (const line of lines) {
       const trimmed = line.trim();
       if (isWin) {
-        const match = trimmed.match(/^HANDLE:(\d+)$/);
-        if (match) lastExternalWindowHandle = match[1];
+        // Parse "HANDLE:123 NAME:Slack"
+        const handleMatch = trimmed.match(/HANDLE:(\d+)/);
+        const nameMatch = trimmed.match(/NAME:([^\s]+)/);
+        if (handleMatch) lastExternalWindowHandle = handleMatch[1];
+        if (nameMatch) lastExternalWindowName = nameMatch[1];
       } else if (trimmed && !trimmed.startsWith('Voice To Text')) {
-        // For Mac, we just store the app name or identifier
         lastExternalWindowHandle = trimmed;
+        lastExternalWindowName = trimmed;
       }
     }
   });

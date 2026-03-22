@@ -18,7 +18,8 @@ let state = {
   audioStream: null,
   audioContext: null,
   analyser: null,
-  settings: {}
+  settings: {},
+  previousText: null
 };
 
 // Speech engine instances (lazy loaded)
@@ -44,9 +45,10 @@ const elements = {
   progressText: document.getElementById('progress-text'),
   progressFill: document.getElementById('progress-fill'),
 
-  // Buttons
+  // Actions
   copyBtn: document.getElementById('copy-btn'),
   typeBtn: document.getElementById('type-btn'),
+  analyzeBtn: document.getElementById('analyze-btn'),
   clearBtn: document.getElementById('clear-btn'),
   minimizeBtn: document.getElementById('minimize-btn'),
   closeBtn: document.getElementById('close-btn'),
@@ -76,6 +78,10 @@ const elements = {
   aiRefineBtn: document.getElementById('ai-refine-btn'),
   aiFormalBtn: document.getElementById('ai-formal-btn'),
   aiSummaryBtn: document.getElementById('ai-summary-btn'),
+  aiReplyBtn: document.getElementById('ai-reply-btn'),
+  aiShortenBtn: document.getElementById('ai-shorten-btn'),
+  aiExpandBtn: document.getElementById('ai-expand-btn'),
+  aiUndoBtn: document.getElementById('ai-undo-btn'),
   aiThinking: document.getElementById('ai-thinking'),
 
   // Appearance
@@ -89,6 +95,7 @@ async function init() {
   await loadSettings();
   setupEventListeners();
   setStatus('ready', 'Ready');
+  updateAiToolbarVisibility();
 
   // Listen for global hotkey from main process
   window.electronAPI.onToggleRecording((isRecording) => {
@@ -159,6 +166,7 @@ function setupEventListeners() {
   // Action buttons
   elements.copyBtn.addEventListener('click', copyTranscription);
   elements.typeBtn.addEventListener('click', typeTranscription);
+  elements.analyzeBtn.addEventListener('click', analyzeSelection);
   elements.clearBtn.addEventListener('click', clearTranscription);
 
   // Window controls
@@ -195,6 +203,10 @@ function setupEventListeners() {
   elements.aiRefineBtn.addEventListener('click', () => performAIAction('refining'));
   elements.aiFormalBtn.addEventListener('click', () => performAIAction('professional'));
   elements.aiSummaryBtn.addEventListener('click', () => performAIAction('summary'));
+  elements.aiReplyBtn.addEventListener('click', () => performAIAction('reply'));
+  elements.aiShortenBtn.addEventListener('click', () => performAIAction('shorten'));
+  elements.aiExpandBtn.addEventListener('click', () => performAIAction('expand'));
+  elements.aiUndoBtn.addEventListener('click', undoAIAction);
 
   // Appearance Sliders
   elements.bgOpacitySlider.addEventListener('input', () => {
@@ -204,6 +216,122 @@ function setupEventListeners() {
 
   // Sync toolbar visibility with text presence
   elements.transcriptionText.addEventListener('input', updateAiToolbarVisibility);
+
+  // Listen for global hotkey trigger
+  window.electronAPI.onTriggerAnalyze(() => {
+    analyzeSelection();
+  });
+}
+
+// ============================================
+// Selection Analysis
+// ============================================
+
+async function analyzeSelection() {
+  if (state.isProcessing) return;
+  
+  setStatus('processing', 'Capturing selection...');
+  state.isProcessing = true;
+  
+  try {
+    // 1. Capture text from focused window
+    const result = await window.electronAPI.captureSelection();
+    
+    if (!result || !result.text || !result.text.trim()) {
+      setStatus('ready', 'No text selected');
+      showToast('Please highlight some text in another app first', 'warning');
+      return;
+    }
+    
+    const { text, windowContext } = result;
+    console.log('Captured Text:', text, 'Context:', windowContext);
+    setStatus('processing', 'AI is analyzing...');
+    showToast(`Analyzing selection from ${windowContext || 'other app'}...`, 'success');
+    
+    // 2. Generate AI response
+    const aiResponse = await generateAiResponse(text.trim(), windowContext);
+    
+    if (aiResponse) {
+      // Clear and show new content
+      elements.transcriptionText.textContent = aiResponse;
+      
+      // Auto-type if enabled
+      if (state.autoType) {
+        await window.electronAPI.typeText(aiResponse);
+      }
+      
+      setStatus('ready', 'Analysis complete');
+      updateAiToolbarVisibility();
+      showToast('AI analysis complete!', 'success');
+    } else {
+      setStatus('ready', 'AI returned no response');
+    }
+  } catch (error) {
+    console.error('Analysis error:', error);
+    setStatus('error', 'Analysis failed');
+    showToast(error.message || 'Analysis failed', 'error');
+  } finally {
+    state.isProcessing = false;
+  }
+}
+
+async function generateAiResponse(text, context) {
+  const apiKey = state.settings.openaiApiKey;
+  if (!apiKey) {
+    throw new Error('OpenAI API key required for analysis. Please add it in Settings.');
+  }
+
+  // Determine context
+  let contextPrompt = "You are a helpful productivity assistant.";
+  if (context) {
+    if (context.toLowerCase().includes('slack')) {
+      contextPrompt = "You are a Slack assistant. Prepare a concise, helpful reply to the following message.";
+    } else if (context.toLowerCase().includes('outlook') || context.toLowerCase().includes('mail')) {
+      contextPrompt = "You are an Email assistant. Prepare a professional and polite draft response.";
+    } else if (context.toLowerCase().includes('code') || context.toLowerCase().includes('visual studio')) {
+      contextPrompt = "You are a Coding assistant. Analyze the code snippet and offer a quick fix or explanation.";
+    }
+  }
+
+  const prompt = `${contextPrompt}
+Analyze the following text captured from another application.
+- If it's a question: Provide a direct, concise, and helpful answer.
+- If it's a message: Draft a polite response.
+- If it's a long segment: Provide a 1-sentence summary.
+Keep your response concise as it will be typed back into the application.
+
+TEXT TO ANALYZE:
+"${text}"`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a concise AI assistant.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'AI API request failed');
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content.trim();
+  } catch (err) {
+    console.error('GPT analysis failed:', err);
+    throw err;
+  }
 }
 
 function applyAppearance(opacity) {
@@ -659,7 +787,23 @@ async function saveQuickSettings() {
 
 function updateAiToolbarVisibility() {
   const hasText = elements.transcriptionText.textContent.trim().length > 0;
-  elements.aiToolbar.classList.toggle('hidden', !hasText);
+  
+  // Always show the toolbar (because the Analyze button is always there)
+  elements.aiToolbar.classList.remove('hidden');
+  
+  // Toggle other AI buttons based on text presence
+  elements.aiFixBtn.classList.toggle('hidden', !hasText);
+  elements.aiRefineBtn.classList.toggle('hidden', !hasText);
+  elements.aiFormalBtn.classList.toggle('hidden', !hasText);
+  if (elements.aiSummaryBtn) elements.aiSummaryBtn.classList.toggle('hidden', !hasText);
+  if (elements.aiReplyBtn) elements.aiReplyBtn.classList.toggle('hidden', !hasText);
+  if (elements.aiShortenBtn) elements.aiShortenBtn.classList.toggle('hidden', !hasText);
+  if (elements.aiExpandBtn) elements.aiExpandBtn.classList.toggle('hidden', !hasText);
+  
+  // Show undo button if we have previous text
+  if (elements.aiUndoBtn) {
+    elements.aiUndoBtn.classList.toggle('hidden', !state.previousText);
+  }
 }
 
 async function performAIAction(actionType) {
@@ -681,7 +825,10 @@ async function performAIAction(actionType) {
     fix: "Fix any spelling, grammar, and punctuation errors in the following text. Preserve the original meaning and style exactly. Return ONLY the corrected text.",
     refining: "Rephrase the following text to be clearer, more concise, and have a better flow. Preserve the original intent. Return ONLY the refined text.",
     professional: "Rewrite the following text in a formal, professional business tone suitable for an email or report. Return ONLY the rewritten text.",
-    summary: "Create a very concise summary of the following text using bullet points if appropriate. Return ONLY the summary."
+    summary: "Create a very concise summary of the following text using bullet points if appropriate. Return ONLY the summary.",
+    reply: "Draft a helpful, polite, and concise reply to the following message. Adapt to the tone of the message. Return ONLY the reply text.",
+    shorten: "Shorten the following text significantly while keeping the core message and all important facts. Return ONLY the shortened text.",
+    expand: "Expand the following text by adding more detail and professional polish while maintaining the original intent. Return ONLY the expanded text."
   };
 
   try {
@@ -709,9 +856,13 @@ async function performAIAction(actionType) {
     const data = await response.json();
     const result = data.choices[0].message.content.trim().replace(/^"|"$/g, '');
     
+    // Save current text for UNDO before updating
+    state.previousText = text;
+    
     // Update transcription area
     elements.transcriptionText.textContent = result;
-    showToast('AI Refinement Complete!', 'success');
+    updateAiToolbarVisibility();
+    showToast('AI Transformation Complete!', 'success');
   } catch (err) {
     console.error('AI Action Failed:', err);
     showToast('AI Action Failed: ' + err.message, 'error');
@@ -719,6 +870,17 @@ async function performAIAction(actionType) {
     elements.aiThinking.classList.add('hidden');
     elements.transcriptionText.classList.remove('processing');
   }
+}
+
+function undoAIAction() {
+  if (!state.previousText) return;
+  
+  const currentText = elements.transcriptionText.textContent;
+  elements.transcriptionText.textContent = state.previousText;
+  state.previousText = currentText; // Swap for "Back and Forth"
+  
+  updateAiToolbarVisibility();
+  showToast('Reverted to previous version', 'success');
 }
 
 // ============================================
@@ -749,6 +911,7 @@ async function typeTranscription() {
 
 function clearTranscription() {
   elements.transcriptionText.textContent = '';
+  updateAiToolbarVisibility();
 }
 
 // ============================================

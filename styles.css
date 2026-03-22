@@ -560,7 +560,7 @@ html {
   justify-content: space-between;
   padding: 4px 8px;
   background: rgba(15, 23, 42, 0.3);
-  border-top: 1px solid var(--glass-border);
+  border-top: none;
   border-bottom-left-radius: var(--radius-md);
   border-bottom-right-radius: var(--radius-md);
   min-height: 34px;

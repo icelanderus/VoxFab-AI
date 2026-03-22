@@ -20,9 +20,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
   setRecordingState: (state) => ipcRenderer.invoke('set-recording-state', state),
+  captureSelection: () => ipcRenderer.invoke('capture-selection'),
 
   // Events from main process
   onToggleRecording: (callback) => {
     ipcRenderer.on('toggle-recording', (event, isRecording) => callback(isRecording));
+  },
+  onTriggerAnalyze: (callback) => {
+    ipcRenderer.on('trigger-analyze', () => callback());
   }
 });
