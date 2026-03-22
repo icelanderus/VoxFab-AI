@@ -44,6 +44,8 @@ const store = new ConfigStore({
   autoDetectLanguage: true,
   translateToEnglish: false,
   windowPosition: null,
+  bgOpacity: 0.85,
+  bgBlur: 12,
   language: 'en'
 });
 
@@ -58,6 +60,8 @@ function createWindow() {
   const winWidth = 340;
   const winHeight = 480;
 
+  const isWin = process.platform === 'win32';
+
   mainWindow = new BrowserWindow({
     width: winWidth,
     height: winHeight,
@@ -68,6 +72,7 @@ function createWindow() {
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: false,
+    hasShadow: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -169,7 +174,11 @@ ipcMain.handle('get-settings', () => {
     openaiApiKey: store.get('openaiApiKey'),
     googleApiKey: store.get('googleApiKey'),
     autoType: store.get('autoType'),
-    language: store.get('language')
+    autoDetectLanguage: store.get('autoDetectLanguage'),
+    translateToEnglish: store.get('translateToEnglish'),
+    language: store.get('language'),
+    bgOpacity: store.get('bgOpacity'),
+    bgBlur: store.get('bgBlur')
   };
 });
 
@@ -178,7 +187,11 @@ ipcMain.handle('save-settings', (event, settings) => {
   if (settings.openaiApiKey !== undefined) store.set('openaiApiKey', settings.openaiApiKey);
   if (settings.googleApiKey !== undefined) store.set('googleApiKey', settings.googleApiKey);
   if (settings.autoType !== undefined) store.set('autoType', settings.autoType);
+  if (settings.autoDetectLanguage !== undefined) store.set('autoDetectLanguage', settings.autoDetectLanguage);
+  if (settings.translateToEnglish !== undefined) store.set('translateToEnglish', settings.translateToEnglish);
   if (settings.language !== undefined) store.set('language', settings.language);
+  if (settings.bgOpacity !== undefined) store.set('bgOpacity', settings.bgOpacity);
+  if (settings.bgBlur !== undefined) store.set('bgBlur', settings.bgBlur);
   return true;
 });
 

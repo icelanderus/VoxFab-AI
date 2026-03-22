@@ -38,7 +38,8 @@ const elements = {
   engineBadge: document.getElementById('settings-toggle'),
   engineName: document.getElementById('engine-name'),
   transcriptionText: document.getElementById('transcription-text'),
-  waveform: document.getElementById('waveform'),
+  waveformLeft: document.getElementById('waveform-left'),
+  waveformRight: document.getElementById('waveform-right'),
   progressContainer: document.getElementById('progress-container'),
   progressText: document.getElementById('progress-text'),
   progressFill: document.getElementById('progress-fill'),
@@ -75,7 +76,10 @@ const elements = {
   aiRefineBtn: document.getElementById('ai-refine-btn'),
   aiFormalBtn: document.getElementById('ai-formal-btn'),
   aiSummaryBtn: document.getElementById('ai-summary-btn'),
-  aiThinking: document.getElementById('ai-thinking')
+  aiThinking: document.getElementById('ai-thinking'),
+
+  // Appearance
+  bgOpacitySlider: document.getElementById('bg-opacity-slider')
 };
 
 // ============================================
@@ -127,6 +131,11 @@ async function loadSettings() {
   elements.languageSelect.value = state.settings.language || 'en';
   elements.openaiKey.value = state.settings.openaiApiKey || '';
   elements.googleKey.value = state.settings.googleApiKey || '';
+  
+  // Appearance
+  const opacity = state.settings.bgOpacity !== undefined ? state.settings.bgOpacity : 0.85;
+  elements.bgOpacitySlider.value = opacity;
+  applyAppearance(opacity);
 
   updateEngineBadge();
   updateApiKeyVisibility();
@@ -187,8 +196,18 @@ function setupEventListeners() {
   elements.aiFormalBtn.addEventListener('click', () => performAIAction('professional'));
   elements.aiSummaryBtn.addEventListener('click', () => performAIAction('summary'));
 
+  // Appearance Sliders
+  elements.bgOpacitySlider.addEventListener('input', () => {
+    applyAppearance(elements.bgOpacitySlider.value);
+    saveQuickSettings();
+  });
+
   // Sync toolbar visibility with text presence
   elements.transcriptionText.addEventListener('input', updateAiToolbarVisibility);
+}
+
+function applyAppearance(opacity) {
+  document.documentElement.style.setProperty('--bg-opacity', opacity);
 }
 
 // ============================================
@@ -232,7 +251,8 @@ async function startRecording() {
     elements.micContainer.classList.add('recording');
     elements.micIcon.classList.add('hidden');
     elements.stopIcon.classList.remove('hidden');
-    elements.waveform.classList.add('active');
+    elements.waveformLeft.classList.add('active');
+    elements.waveformRight.classList.add('active');
 
     // Start audio visualization
     setupAudioVisualization(state.audioStream);
@@ -263,7 +283,8 @@ function stopRecording() {
   elements.micContainer.classList.remove('recording');
   elements.micIcon.classList.remove('hidden');
   elements.stopIcon.classList.add('hidden');
-  elements.waveform.classList.remove('active');
+  elements.waveformLeft.classList.remove('active');
+  elements.waveformRight.classList.remove('active');
 
   setStatus('processing', 'Processing...');
 }
@@ -579,7 +600,8 @@ async function saveSettings() {
     autoType: elements.autoTypeToggle.checked,
     autoDetectLanguage: elements.autoDetectToggleSettings.checked,
     translateToEnglish: elements.translateToggleSettings.checked,
-    language: elements.languageSelect.value
+    language: elements.languageSelect.value,
+    bgOpacity: parseFloat(elements.bgOpacitySlider.value)
   };
 
   await window.electronAPI.saveSettings(settings);
@@ -608,7 +630,8 @@ async function saveQuickSettings() {
     ...state.settings,
     autoType: elements.autoTypeToggle.checked,
     autoDetectLanguage: elements.autoDetectToggle.checked,
-    translateToEnglish: elements.translateToggle.checked
+    translateToEnglish: elements.translateToggle.checked,
+    bgOpacity: parseFloat(elements.bgOpacitySlider.value)
   };
 
   await window.electronAPI.saveSettings(settings);

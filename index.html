@@ -59,8 +59,19 @@
         </button>
       </div>
 
-      <!-- Microphone Button -->
-      <div class="mic-container">
+      <!-- Microphone Button & Waveforms -->
+      <div class="mic-container" id="mic-container">
+        <!-- Left Waveform -->
+        <div class="waveform" id="waveform-left">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+
         <div class="mic-ring" id="mic-ring">
           <button class="mic-button" id="mic-button" title="Click to start recording (Ctrl+Shift+Space)">
             <svg class="mic-icon" id="mic-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -72,7 +83,9 @@
             </svg>
           </button>
         </div>
-        <div class="waveform" id="waveform">
+
+        <!-- Right Waveform -->
+        <div class="waveform" id="waveform-right">
           <div class="wave-bar"></div>
           <div class="wave-bar"></div>
           <div class="wave-bar"></div>
@@ -243,16 +256,26 @@
           </select>
         </div>
 
-        <!-- OpenAI API Key -->
+        <!-- API Keys -->
         <div class="setting-group api-key-group" id="openai-key-group">
-          <label class="setting-label">OpenAI API Key</label>
-          <input type="password" class="setting-input" id="openai-key" placeholder="sk-...">
+          <label class="setting-label" for="openai-key">OpenAI API Key</label>
+          <input type="password" id="openai-key" class="setting-input" placeholder="sk-...">
+        </div>
+        
+        <div class="setting-group api-key-group" id="google-key-group">
+          <label class="setting-label" for="google-key">Google API Key</label>
+          <input type="password" id="google-key" class="setting-input" placeholder="API Key...">
         </div>
 
-        <!-- Google Cloud API Key -->
-        <div class="setting-group api-key-group" id="google-key-group">
-          <label class="setting-label">Google Cloud API Key</label>
-          <input type="password" class="setting-input" id="google-key" placeholder="AIza...">
+        <!-- Appearance -->
+        <div class="setting-group">
+          <label class="setting-label">Appearance</label>
+          <div class="setting-row">
+            <span class="setting-name">Transparency</span>
+            <div class="range-container">
+              <input type="range" id="bg-opacity-slider" min="0.05" max="1.0" step="0.05" value="0.85">
+            </div>
+          </div>
         </div>
 
         <!-- Auto-Detect (Duplicate for settings) -->
