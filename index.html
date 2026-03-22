@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice To Text</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Title Bar (draggable) -->
+    <div class="title-bar" id="title-bar">
+      <div class="title-bar-left">
+        <div class="app-logo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 1C10.34 1 9 2.34 9 4V12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12V4C15 2.34 13.66 1 12 1Z" fill="url(#micGrad)"/>
+            <path d="M17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12H5C5 15.53 7.61 18.43 11 18.92V22H13V18.92C16.39 18.43 19 15.53 19 12H17Z" fill="url(#micGrad)"/>
+            <defs>
+              <linearGradient id="micGrad" x1="5" y1="1" x2="19" y2="22" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#00D4FF"/>
+                <stop offset="1" stop-color="#8B5CF6"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="app-title">Voice To Text</span>
+      </div>
+      <div class="title-bar-right">
+        <!-- settings toggle removed from here and moved to engine badge -->
+        <button class="title-btn minimize-btn" id="minimize-btn" title="Minimize to Tray">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button class="title-btn close-btn" id="close-btn" title="Quit">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="main-content">
+      <!-- Status -->
+      <div class="status-bar">
+        <div class="status-dot" id="status-dot"></div>
+        <span class="status-text" id="status-text">Ready</span>
+        <button class="engine-badge" id="settings-toggle" title="Settings">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <span id="engine-name">Local Whisper</span>
+        </button>
+      </div>
+
+      <!-- Microphone Button -->
+      <div class="mic-container">
+        <div class="mic-ring" id="mic-ring">
+          <button class="mic-button" id="mic-button" title="Click to start recording (Ctrl+Shift+Space)">
+            <svg class="mic-icon" id="mic-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 1C10.34 1 9 2.34 9 4V12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12V4C15 2.34 13.66 1 12 1Z" fill="white"/>
+              <path d="M17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12H5C5 15.53 7.61 18.43 11 18.92V22H13V18.92C16.39 18.43 19 15.53 19 12H17Z" fill="white"/>
+            </svg>
+            <svg class="stop-icon hidden" id="stop-icon" width="32" height="32" viewBox="0 0 24 24" fill="white">
+              <rect x="6" y="6" width="12" height="12" rx="2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="waveform" id="waveform">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+      </div>
+
+      <!-- Quick Settings Row -->
+      <div class="quick-settings">
+        <!-- Auto-Type -->
+        <div class="quick-setting-item" title="Auto-Type Mode">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="4 17 10 11 4 5"/>
+            <line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+          <label class="toggle-switch mini">
+            <input type="checkbox" id="auto-type-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Auto-Detect -->
+        <div class="quick-setting-item" title="Auto-Detect Language">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          <label class="toggle-switch mini">
+            <input type="checkbox" id="auto-detect-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Translate -->
+        <div class="quick-setting-item" title="Translate to English">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m5 8 6 6"/>
+            <path d="m4 14 6-6 2-3"/>
+            <path d="M2 5h12"/>
+            <path d="M7 2h1"/>
+            <path d="m22 22-5-10-5 10"/>
+            <path d="M14 18h6"/>
+          </svg>
+          <label class="toggle-switch mini">
+            <input type="checkbox" id="translate-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Progress (for model download) -->
+      <div class="progress-container hidden" id="progress-container">
+        <div class="progress-text" id="progress-text">Downloading model...</div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Transcription Output -->
+      <div class="transcription-container">
+        <div class="transcription-header">
+          <span class="transcription-label">Transcription</span>
+          <div class="transcription-actions">
+            <button class="action-btn" id="copy-btn" title="Copy to clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+            </button>
+            <button class="action-btn" id="type-btn" title="Type into focused app">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <line x1="6" y1="8" x2="6" y2="8"/>
+                <line x1="10" y1="8" x2="10" y2="8"/>
+                <line x1="14" y1="8" x2="14" y2="8"/>
+                <line x1="18" y1="8" x2="18" y2="8"/>
+                <line x1="8" y1="16" x2="16" y2="16"/>
+                <line x1="6" y1="12" x2="6" y2="12"/>
+                <line x1="10" y1="12" x2="10" y2="12"/>
+                <line x1="14" y1="12" x2="14" y2="12"/>
+                <line x1="18" y1="12" x2="18" y2="12"/>
+              </svg>
+            </button>
+            <button class="action-btn" id="clear-btn" title="Clear">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="transcription-text" id="transcription-text" contenteditable="true" data-placeholder="Your transcription will appear here..."></div>
+
+        <!-- AI Smart Actions Footer (Icon-only, matching header style) -->
+        <div class="transcription-footer hidden" id="ai-actions-toolbar">
+          <div class="ai-actions-group">
+            <button class="action-btn ai-btn" id="ai-fix-btn" title="✨ Fix & Polish">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                <path d="m5 3 1 2"/>
+                <path d="m19 3-1 2"/>
+                <path d="m5 21 1-2"/>
+                <path d="m19 21-1-2"/>
+              </svg>
+            </button>
+            <button class="action-btn ai-btn" id="ai-refine-btn" title="📝 Refine">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+              </svg>
+            </button>
+            <button class="action-btn ai-btn" id="ai-formal-btn" title="⚡ Professional">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 12 10 12 10 16 6 16z"/>
+                <path d="M6 4 10 4 10 8 6 8z"/>
+                <path d="M14 12 18 12 18 16 14 16z"/>
+                <path d="M14 4 18 4 18 8 14 8z"/>
+                <path d="M2 18h20"/>
+              </svg>
+            </button>
+            <button class="action-btn ai-btn" id="ai-summary-btn" title="📄 Summarize">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <line x1="10" y1="9" x2="8" y2="9"/>
+              </svg>
+            </button>
+          </div>
+          <div class="ai-thinking-dots hidden" id="ai-thinking">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hotkey Hint -->
+      <div class="hotkey-hint">
+        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> to toggle from anywhere
+      </div>
+    </div>
+
+    <!-- Settings Panel (slides in) -->
+    <div class="settings-panel hidden" id="settings-panel">
+      <div class="settings-header">
+        <button class="title-btn" id="settings-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12,19 5,12 12,5"/>
+          </svg>
+        </button>
+        <span class="settings-title">Settings</span>
+        <div style="width: 28px;"></div> <!-- spacer to balance the back button -->
+      </div>
+
+      <div class="settings-body">
+        <!-- Engine Selection -->
+        <div class="setting-group">
+          <label class="setting-label">Speech Engine</label>
+          <select class="setting-select" id="engine-select">
+            <option value="local-whisper">🤖 Local Whisper (Free, Offline)</option>
+            <option value="openai">🌐 OpenAI Whisper API</option>
+            <option value="google-cloud">☁️ Google Cloud STT</option>
+          </select>
+        </div>
+
+        <!-- OpenAI API Key -->
+        <div class="setting-group api-key-group" id="openai-key-group">
+          <label class="setting-label">OpenAI API Key</label>
+          <input type="password" class="setting-input" id="openai-key" placeholder="sk-...">
+        </div>
+
+        <!-- Google Cloud API Key -->
+        <div class="setting-group api-key-group" id="google-key-group">
+          <label class="setting-label">Google Cloud API Key</label>
+          <input type="password" class="setting-input" id="google-key" placeholder="AIza...">
+        </div>
+
+        <!-- Auto-Detect (Duplicate for settings) -->
+        <div class="setting-group">
+          <label class="setting-label">Auto-Detect Language</label>
+          <div class="setting-description">Automatically identify the spoken language</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto-detect-toggle-settings">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Translate (Duplicate for settings) -->
+        <div class="setting-group">
+          <label class="setting-label">Translate to English</label>
+          <div class="setting-description">Always output in English</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="translate-toggle-settings">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Manual Language -->
+        <div class="setting-group" id="language-group">
+          <label class="setting-label">Manual Language</label>
+          <div class="setting-description">Only used when auto-detect is OFF</div>
+          <select class="setting-select" id="language-select">
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="ru">Russian</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh">Chinese</option>
+          </select>
+          <div class="setting-info" id="language-info">This option is disabled when Auto-Detect Language is on.</div>
+        </div>
+
+        <button class="save-btn" id="save-settings-btn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
