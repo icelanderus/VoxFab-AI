@@ -604,9 +604,11 @@ html {
 .custom-prompt-container {
   display: flex;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 12px;
+  margin: 6px 0;
   background: rgba(30, 41, 59, 0.7);
-  border-top: 1px solid var(--glass-border);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
   align-items: center;
   transition: all var(--transition-normal);
   backdrop-filter: blur(12px);
