@@ -57,6 +57,11 @@ let mainWindow = null;
 let tray = null;
 let isRecording = false;
 
+// Set App User Model ID for Windows Taskbar
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.icelanderus.my-voice-to-text');
+}
+
 function createWindow() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 

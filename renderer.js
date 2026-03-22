@@ -19,7 +19,13 @@ let state = {
   audioContext: null,
   analyser: null,
   settings: {},
-  previousText: null
+  previousText: null,
+  capturedContext: null
+};
+
+const ICONS = {
+  capture: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+  analyze: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="3"/><path d="m16 19-3.5-3.5"/></svg>'
 };
 
 // Speech engine instances (lazy loaded)
@@ -170,7 +176,7 @@ function setupEventListeners() {
   // Action buttons
   elements.copyBtn.addEventListener('click', copyTranscription);
   elements.typeBtn.addEventListener('click', typeTranscription);
-  elements.analyzeBtn.addEventListener('click', analyzeSelection);
+  elements.analyzeBtn.addEventListener('click', handleAnalyzeClick);
   elements.clearBtn.addEventListener('click', clearTranscription);
 
   // Window controls
@@ -230,7 +236,7 @@ function setupEventListeners() {
 
   // Listen for global hotkey trigger
   window.electronAPI.onTriggerAnalyze(() => {
-    analyzeSelection();
+    handleAnalyzeClick();
   });
 }
 
@@ -238,14 +244,23 @@ function setupEventListeners() {
 // Selection Analysis
 // ============================================
 
-async function analyzeSelection() {
+async function handleAnalyzeClick() {
+  const hasText = elements.transcriptionText.textContent.trim().length > 0;
+  if (hasText) {
+    await analyzeExistingText();
+  } else {
+    await captureSelectionFromApp();
+  }
+}
+
+async function captureSelectionFromApp() {
   if (state.isProcessing) return;
   
   setStatus('processing', 'Capturing selection...');
   state.isProcessing = true;
   
   try {
-    // 1. Capture text from focused window
+    // Capture text from focused window
     const result = await window.electronAPI.captureSelection();
     
     if (!result || !result.text || !result.text.trim()) {
@@ -255,18 +270,40 @@ async function analyzeSelection() {
     }
     
     const { text, windowContext } = result;
-    console.log('Captured Text:', text, 'Context:', windowContext);
-    setStatus('processing', 'AI is analyzing...');
-    showToast(`Analyzing selection from ${windowContext || 'other app'}...`, 'success');
+    state.capturedContext = windowContext; // Store for later analysis
     
-    // 2. Generate AI response
-    const aiResponse = await generateAiResponse(text.trim(), windowContext);
+    elements.transcriptionText.textContent = text.trim();
+    setStatus('ready', 'Text captured');
+    updateAiToolbarVisibility();
+    showToast(`Text captured from ${windowContext || 'other app'}`, 'success');
+  } catch (error) {
+    console.error('Capture error:', error);
+    setStatus('error', 'Capture failed');
+  } finally {
+    state.isProcessing = false;
+  }
+}
+
+async function analyzeExistingText() {
+  if (state.isProcessing) return;
+  
+  const text = elements.transcriptionText.textContent.trim();
+  if (!text) return;
+
+  setStatus('processing', 'AI is analyzing...');
+  state.isProcessing = true;
+  
+  try {
+    const windowContext = state.capturedContext || null;
+    showToast(`Analyzing text...`, 'success');
+    
+    // Generate AI response
+    const aiResponse = await generateAiResponse(text, windowContext);
     
     if (aiResponse) {
-      // Clear and show new content
+      state.previousText = text;
       elements.transcriptionText.textContent = aiResponse;
       
-      // Auto-type if enabled
       if (state.autoType) {
         await window.electronAPI.typeText(aiResponse);
       }
@@ -274,8 +311,6 @@ async function analyzeSelection() {
       setStatus('ready', 'Analysis complete');
       updateAiToolbarVisibility();
       showToast('AI analysis complete!', 'success');
-    } else {
-      setStatus('ready', 'AI returned no response');
     }
   } catch (error) {
     console.error('Analysis error:', error);
@@ -799,6 +834,16 @@ async function saveQuickSettings() {
 function updateAiToolbarVisibility() {
   const hasText = elements.transcriptionText.textContent.trim().length > 0;
   
+  // Update the primary Analyze/Capture button based on text presence
+  if (hasText) {
+    elements.analyzeBtn.innerHTML = ICONS.analyze;
+    elements.analyzeBtn.title = 'AI Analyze (Smart Context)';
+  } else {
+    elements.analyzeBtn.innerHTML = ICONS.capture;
+    elements.analyzeBtn.title = 'Capture text from any highlight (Slack/Mail/etc.)';
+    state.capturedContext = null; // Reset context if cleared
+  }
+
   // Always show the toolbar (because the Analyze button is always there)
   elements.aiToolbar.classList.remove('hidden');
   
