@@ -82,6 +82,10 @@ const elements = {
   aiShortenBtn: document.getElementById('ai-shorten-btn'),
   aiExpandBtn: document.getElementById('ai-expand-btn'),
   aiUndoBtn: document.getElementById('ai-undo-btn'),
+  aiCustomBtn: document.getElementById('ai-custom-btn'),
+  customPromptContainer: document.getElementById('custom-prompt-container'),
+  customPromptInput: document.getElementById('custom-prompt-input'),
+  customPromptGo: document.getElementById('custom-prompt-go'),
   aiThinking: document.getElementById('ai-thinking'),
 
   // Appearance
@@ -207,6 +211,13 @@ function setupEventListeners() {
   elements.aiShortenBtn.addEventListener('click', () => performAIAction('shorten'));
   elements.aiExpandBtn.addEventListener('click', () => performAIAction('expand'));
   elements.aiUndoBtn.addEventListener('click', undoAIAction);
+  
+  // Custom Prompt
+  elements.aiCustomBtn.addEventListener('click', toggleCustomPrompt);
+  elements.customPromptGo.addEventListener('click', () => performAIAction('custom'));
+  elements.customPromptInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') performAIAction('custom');
+  });
 
   // Appearance Sliders
   elements.bgOpacitySlider.addEventListener('input', () => {
@@ -799,10 +810,16 @@ function updateAiToolbarVisibility() {
   if (elements.aiReplyBtn) elements.aiReplyBtn.classList.toggle('hidden', !hasText);
   if (elements.aiShortenBtn) elements.aiShortenBtn.classList.toggle('hidden', !hasText);
   if (elements.aiExpandBtn) elements.aiExpandBtn.classList.toggle('hidden', !hasText);
+  if (elements.aiCustomBtn) elements.aiCustomBtn.classList.toggle('hidden', !hasText);
   
   // Show undo button if we have previous text
   if (elements.aiUndoBtn) {
     elements.aiUndoBtn.classList.toggle('hidden', !state.previousText);
+  }
+
+  // Hide custom prompt if we hide buttons
+  if (!hasText) {
+    elements.customPromptContainer.classList.add('hidden');
   }
 }
 
@@ -828,8 +845,15 @@ async function performAIAction(actionType) {
     summary: "Create a very concise summary of the following text using bullet points if appropriate. Return ONLY the summary.",
     reply: "Draft a helpful, polite, and concise reply to the following message. Adapt to the tone of the message. Return ONLY the reply text.",
     shorten: "Shorten the following text significantly while keeping the core message and all important facts. Return ONLY the shortened text.",
-    expand: "Expand the following text by adding more detail and professional polish while maintaining the original intent. Return ONLY the expanded text."
+    expand: "Expand the following text by adding more detail and professional polish while maintaining the original intent. Return ONLY the expanded text.",
+    custom: elements.customPromptInput.value.trim()
   };
+
+  if (actionType === 'custom' && !prompts.custom) {
+    showToast('Please enter an instruction first', 'error');
+    elements.customPromptInput.focus();
+    return;
+  }
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -861,6 +885,13 @@ async function performAIAction(actionType) {
     
     // Update transcription area
     elements.transcriptionText.textContent = result;
+    
+    // Clear and hide custom prompt if used
+    if (actionType === 'custom') {
+      elements.customPromptInput.value = '';
+      elements.customPromptContainer.classList.add('hidden');
+    }
+    
     updateAiToolbarVisibility();
     showToast('AI Transformation Complete!', 'success');
   } catch (err) {
@@ -881,6 +912,23 @@ function undoAIAction() {
   
   updateAiToolbarVisibility();
   showToast('Reverted to previous version', 'success');
+}
+
+function toggleCustomPrompt() {
+  const isHidden = elements.customPromptContainer.classList.toggle('hidden');
+  
+  // Dynamically adjust window height to prevent overlay
+  const currentHeight = window.innerHeight;
+  const currentWidth = window.innerWidth;
+  
+  if (!isHidden) {
+    // Expand window for the prompt input (approx 50px)
+    window.electronAPI.resizeWindow(currentWidth, currentHeight + 50);
+    elements.customPromptInput.focus();
+  } else {
+    // Shrink window back
+    window.electronAPI.resizeWindow(currentWidth, Math.max(400, currentHeight - 50));
+  }
 }
 
 // ============================================

@@ -49,13 +49,18 @@
   box-sizing: border-box;
 }
 
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: transparent !important;
-  color: var(--text-primary);
-  overflow: hidden;
+html, body {
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  background: transparent !important;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-primary);
   user-select: none;
   -webkit-app-region: no-drag;
 }
@@ -74,8 +79,8 @@ html {
    App Container
    ======================================== */
 .app-container {
-  width: 340px;
-  height: 480px;
+  width: 100%;
+  height: 100%;
   background: var(--bg-primary);
   border-radius: var(--radius-xl);
   border: 1px solid var(--glass-border);
@@ -245,7 +250,8 @@ html {
   padding: 8px 16px;
   margin-top: -10px;
   position: relative;
-  min-height: 100px;
+  min-height: 110px;
+  flex-shrink: 0;
 }
 
 .mic-ring {
@@ -533,7 +539,8 @@ html {
   cursor: text;
   -webkit-app-region: no-drag;
   user-select: text;
-  min-height: 80px;
+  min-height: 40px;
+  flex-shrink: 1;
 }
 
 .transcription-text:focus {
@@ -558,12 +565,13 @@ html {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 8px;
-  background: rgba(15, 23, 42, 0.3);
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.4);
   border-top: none;
   border-bottom-left-radius: var(--radius-md);
   border-bottom-right-radius: var(--radius-md);
-  min-height: 34px;
+  min-height: 38px;
+  flex-shrink: 0;
 }
 
 .transcription-footer.hidden {
@@ -587,6 +595,63 @@ html {
 #ai-refine-btn:hover { color: #8b5cf6; }
 #ai-formal-btn:hover { color: #ec4899; }
 #ai-summary-btn:hover { color: #10b981; }
+#ai-reply-btn:hover { color: #00d4ff; }
+#ai-shorten-btn:hover { color: #f59e0b; }
+#ai-expand-btn:hover { color: #8b5cf6; }
+#ai-custom-btn:hover { color: #22d3ee; }
+
+/* Custom Prompt Input Area */
+.custom-prompt-container {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.7);
+  border-top: 1px solid var(--glass-border);
+  align-items: center;
+  transition: all var(--transition-normal);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.custom-prompt-container.hidden {
+  display: none !important;
+}
+
+#custom-prompt-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+#custom-prompt-input::placeholder {
+  color: var(--text-dim);
+}
+
+#custom-prompt-go {
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: var(--accent-gradient);
+  border: none;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+#custom-prompt-go:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+#custom-prompt-go:active {
+  transform: translateY(0);
+}
 
 /* AI Thinking Dots */
 .ai-thinking-dots {

@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeWindow: () => ipcRenderer.invoke('close-window'),
   setRecordingState: (state) => ipcRenderer.invoke('set-recording-state', state),
   captureSelection: () => ipcRenderer.invoke('capture-selection'),
+  resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
 
   // Events from main process
   onToggleRecording: (callback) => {

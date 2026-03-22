@@ -182,6 +182,12 @@
           </div>
         </div>
         <div class="transcription-text" id="transcription-text" contenteditable="true" data-placeholder="Your transcription will appear here..."></div>
+        
+        <!-- Custom AI Prompt Input (Hidden by default) -->
+        <div class="custom-prompt-container hidden" id="custom-prompt-container">
+          <input type="text" id="custom-prompt-input" placeholder="e.g. Translate to French, make it funny..." />
+          <button id="custom-prompt-go">Go</button>
+        </div>
 
         <!-- AI Smart Actions Footer (Icon-only, matching header style) -->
         <div class="transcription-footer" id="ai-actions-toolbar">
@@ -250,6 +256,11 @@
                 <line x1="16" y1="13" x2="8" y2="13"/>
                 <line x1="16" y1="17" x2="8" y2="17"/>
                 <line x1="10" y1="9" x2="8" y2="9"/>
+              </svg>
+            </button>
+            <button class="action-btn ai-btn" id="ai-custom-btn" title="💬 Custom Instruction">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
             </button>
           </div>

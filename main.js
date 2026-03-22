@@ -47,6 +47,7 @@ const store = new ConfigStore({
   autoDetectLanguage: true,
   translateToEnglish: false,
   windowPosition: null,
+  windowSize: { width: 340, height: 580 },
   bgOpacity: 0.85,
   bgBlur: 12,
   language: 'en'
@@ -60,20 +61,23 @@ function createWindow() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
   const savedPosition = store.get('windowPosition');
-  const winWidth = 340;
-  const winHeight = 480;
+  const savedSize = store.get('windowSize') || { width: 340, height: 580 };
+  const winWidth = savedSize.width;
+  const winHeight = savedSize.height;
 
   const isWin = process.platform === 'win32';
 
   mainWindow = new BrowserWindow({
     width: winWidth,
     height: winHeight,
+    minWidth: 320,
+    minHeight: 400,
     x: savedPosition ? savedPosition.x : screenWidth - winWidth - 20,
     y: savedPosition ? savedPosition.y : screenHeight - winHeight - 20,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: false,
+    resizable: true,
     skipTaskbar: false,
     hasShadow: true,
     webPreferences: {
@@ -88,11 +92,16 @@ function createWindow() {
   mainWindow.loadFile('index.html');
   mainWindow.setVisibleOnAllWorkspaces(true);
 
-  // Save window position on move
-  mainWindow.on('moved', () => {
+  // Save window state on move/resize
+  const saveWindowState = () => {
     const [x, y] = mainWindow.getPosition();
+    const [width, height] = mainWindow.getSize();
     store.set('windowPosition', { x, y });
-  });
+    store.set('windowSize', { width, height });
+  };
+
+  mainWindow.on('moved', saveWindowState);
+  mainWindow.on('resize', saveWindowState);
 
   mainWindow.on('close', (e) => {
     e.preventDefault();
@@ -346,11 +355,17 @@ ipcMain.handle('type-text', async (event, text) => {
 });
 
 
-
 ipcMain.handle('minimize-window', () => {
-  if (mainWindow) mainWindow.hide();
+  if (mainWindow) mainWindow.minimize();
 });
 
+ipcMain.on('resize-window', (event, { width, height }) => {
+  if (mainWindow) {
+    mainWindow.setSize(width, height);
+  }
+});
+
+// Handle language change
 ipcMain.handle('close-window', () => {
   if (mainWindow) {
     mainWindow.removeAllListeners('close');
