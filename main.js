@@ -996,6 +996,11 @@ ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstructi
   }
 });
 
+ipcMain.handle('open-writing-assistant', async () => {
+  await openGrammarFloatFromShortcut();
+  return true;
+});
+
 ipcMain.handle('grammar-float-close', () => {
   lastGrammarFloatPayloadText = '';
   if (grammarFloatWindow && !grammarFloatWindow.isDestroyed()) {

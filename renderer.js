@@ -55,6 +55,7 @@ const elements = {
   copyBtn: document.getElementById('copy-btn'),
   typeBtn: document.getElementById('type-btn'),
   analyzeBtn: document.getElementById('analyze-btn'),
+  writingAssistantBtn: document.getElementById('writing-assistant-btn'),
   clearBtn: document.getElementById('clear-btn'),
   minimizeBtn: document.getElementById('minimize-btn'),
   closeBtn: document.getElementById('close-btn'),
@@ -201,6 +202,12 @@ function getAssistantClipboardEnabledForQuickSave() {
   return state.settings.autoGrammarClipboard !== false;
 }
 
+/** Footer “Writing assistant” matches the sparkle / Writing assistant toggle (autoGrammarClipboard). */
+function updateWritingAssistantButtonVisibility() {
+  if (!elements.writingAssistantBtn) return;
+  elements.writingAssistantBtn.classList.toggle('hidden', !getAssistantClipboardEnabledForQuickSave());
+}
+
 async function loadSettings() {
   state.settings = await window.electronAPI.getSettings();
   state.engine = state.settings.engine || 'local-whisper';
@@ -222,6 +229,7 @@ async function loadSettings() {
   if (elements.grammarFloatResizableToggle) {
     elements.grammarFloatResizableToggle.checked = state.settings.grammarFloatResizable !== false;
   }
+  updateWritingAssistantButtonVisibility();
 
   // Appearance
   const opacity = state.settings.bgOpacity !== undefined ? state.settings.bgOpacity : 0.85;
@@ -251,6 +259,15 @@ function setupEventListeners() {
   elements.copyBtn.addEventListener('click', copyTranscription);
   elements.typeBtn.addEventListener('click', typeTranscription);
   elements.analyzeBtn.addEventListener('click', handleAnalyzeClick);
+  if (elements.writingAssistantBtn) {
+    elements.writingAssistantBtn.addEventListener('click', async () => {
+      try {
+        await window.electronAPI.openWritingAssistant();
+      } catch (e) {
+        console.error('openWritingAssistant:', e);
+      }
+    });
+  }
   elements.clearBtn.addEventListener('click', clearTranscription);
 
   // Window controls
@@ -264,12 +281,14 @@ function setupEventListeners() {
   if (elements.autoGrammarClipboardToggle) {
     elements.autoGrammarClipboardToggle.addEventListener('change', () => {
       syncAssistantClipboardToggles(elements.autoGrammarClipboardToggle.checked);
+      updateWritingAssistantButtonVisibility();
       saveQuickSettings();
     });
   }
   if (elements.assistantClipboardToggle) {
     elements.assistantClipboardToggle.addEventListener('change', () => {
       syncAssistantClipboardToggles(elements.assistantClipboardToggle.checked);
+      updateWritingAssistantButtonVisibility();
       saveQuickSettings();
     });
   }
@@ -892,6 +911,7 @@ async function saveSettings() {
   if (elements.grammarFloatResizableToggle) {
     elements.grammarFloatResizableToggle.checked = settings.grammarFloatResizable !== false;
   }
+  updateWritingAssistantButtonVisibility();
 
   // Keep main toggles in sync
   elements.autoDetectToggle.checked = state.autoDetectLanguage;
@@ -932,6 +952,7 @@ async function saveQuickSettings() {
   
   state.translateToEnglish = settings.translateToEnglish;
   syncAssistantClipboardToggles(settings.autoGrammarClipboard !== false);
+  updateWritingAssistantButtonVisibility();
 
   // Keep settings toggles in sync
   elements.autoDetectToggleSettings.checked = state.autoDetectLanguage;
@@ -959,7 +980,8 @@ function updateAiToolbarVisibility() {
 
   // Always show the toolbar (because the Analyze button is always there)
   elements.aiToolbar.classList.remove('hidden');
-  
+  updateWritingAssistantButtonVisibility();
+
   // Toggle other AI buttons based on text presence
   elements.aiFixBtn.classList.toggle('hidden', !hasText);
   elements.aiRefineBtn.classList.toggle('hidden', !hasText);
