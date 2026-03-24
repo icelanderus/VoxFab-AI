@@ -1,0 +1,267 @@
+/* Floating assistant — transparent window; uses styles.css for AI toolbar buttons */
+
+/* Undo main styles.css full-viewport stretch so height follows content */
+html:has(body.grammar-float-body),
+body.grammar-float-body {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.grammar-float-body {
+  background: transparent !important;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  margin: 0;
+  padding: 0;
+}
+
+/* Single solid card (matches main app glass), not a transparent header + separate panel. */
+.grammar-float-root {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 440px;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+  padding: 10px 12px 12px;
+  box-sizing: border-box;
+  background: var(--bg-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+/* Title-like bar: native OS drag on the strip (like main app), not on FAB or ✕. */
+.float-chrome-row.float-chrome-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  margin-bottom: 10px;
+  padding: 2px 0 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  -webkit-app-region: no-drag;
+}
+
+.fab-dot-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+/* Full-width summary strip: native drag (no text selection). */
+.float-header-mid {
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.panel-hint.header-hint-inline {
+  margin: 0;
+  flex: 1 1 0%;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  cursor: inherit;
+}
+
+.float-close-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+@keyframes fab-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  40% {
+    transform: scale(1.12);
+    filter: brightness(1.18);
+  }
+  60% {
+    transform: scale(1.06);
+    filter: brightness(1.1);
+  }
+}
+
+/* One small dot — purple / brand gradient (same as Voice To Text title mic) */
+.fab-dot-btn {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  -webkit-app-region: no-drag;
+  background: linear-gradient(135deg, #00d4ff, #8b5cf6);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.55);
+  transition: box-shadow var(--transition-fast);
+  animation: fab-dot-pulse 2.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.fab-dot-btn:hover {
+  animation-play-state: paused;
+  transform: scale(1.14);
+  filter: brightness(1.12);
+  box-shadow: 0 0 16px rgba(0, 212, 255, 0.45), 0 0 14px rgba(139, 92, 246, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fab-dot-btn {
+    animation: none;
+    filter: none;
+  }
+
+  .fab-dot-btn:hover {
+    transform: none;
+  }
+}
+
+.fab-dot-btn.state-idle {
+  background: linear-gradient(135deg, #00d4ff, #8b5cf6);
+}
+
+.fab-dot-btn.state-warn {
+  background: linear-gradient(135deg, #fcd34d, #f59e0b);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.7);
+}
+
+.fab-dot-btn.state-ok {
+  background: linear-gradient(135deg, #6ee7b7, #10b981);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.55);
+}
+
+.fab-dot-btn.state-neutral {
+  background: linear-gradient(135deg, #a78bfa, #6366f1);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+}
+
+.grammar-panel {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  -webkit-app-region: no-drag;
+}
+
+.grammar-panel.open {
+  display: flex;
+  min-width: 300px;
+}
+
+.thinking-float {
+  min-height: 14px;
+}
+
+.transcription-footer.grammar-ai-toolbar {
+  margin: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  /* Slightly recessed strip inside the same card (still one window). */
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.grammar-ai-toolbar .ai-actions-group .action-btn {
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
+}
+
+.grammar-ai-toolbar .ai-actions-group .action-btn:hover {
+  border-color: var(--glass-border-hover);
+  background: var(--bg-tertiary);
+}
+
+.grammar-custom {
+  margin: 0 !important;
+}
+
+.grammar-result {
+  font-size: 12px;
+  color: var(--text-primary);
+  max-height: 96px;
+  overflow-y: auto;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: var(--radius-sm);
+  line-height: 1.45;
+  display: none;
+  border: 1px solid var(--glass-border);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.grammar-result.visible {
+  display: block;
+}
+
+.apply-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.apply-row button {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 212, 255, 0.45);
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity var(--transition-fast);
+}
+
+.apply-row button:hover {
+  opacity: 0.92;
+}
+
+.apply-row button.secondary {
+  border-color: var(--glass-border-hover);
+  background: transparent;
+  color: var(--text-secondary);
+}

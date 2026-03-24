@@ -1,5 +1,17 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, screen, clipboard } = require('electron');
-const { keyboard, Key } = require('@nut-tree-fork/nut-js');
+const {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  globalShortcut,
+  ipcMain,
+  nativeImage,
+  screen,
+  clipboard,
+  systemPreferences,
+  dialog
+} = require('electron');
+const { keyboard, Key, sleep } = require('@nut-tree-fork/nut-js');
 const path = require('path');
 const fs = require('fs');
 
@@ -50,12 +62,102 @@ const store = new ConfigStore({
   windowSize: { width: 340, height: 580 },
   bgOpacity: 0.85,
   bgBlur: 12,
-  language: 'en'
+  language: 'en',
+  /** Win/Linux: open assistant when clipboard changes after copy. macOS: off (⌘C left free); use ⌘⇧E. */
+  autoGrammarClipboard: true,
+  /** Allow dragging edges to resize the floating assistant window. */
+  grammarFloatResizable: true
 });
 
 let mainWindow = null;
+let grammarFloatWindow = null;
 let tray = null;
 let isRecording = false;
+
+let grammarClipboardIgnoreUntil = 0;
+/** Last clipboard text seen by the watcher (change detection between polls). */
+let prevClipboardTick = '';
+let grammarFloatOpening = false;
+let lastGrammarFloatPayloadText = '';
+function markGrammarClipboardIgnore(ms = 3000) {
+  grammarClipboardIgnoreUntil = Date.now() + ms;
+}
+
+/** PowerShell files must be on disk; external processes cannot open paths inside app.asar. */
+function pathToScript(filename) {
+  const rel = path.join('scripts', filename);
+  if (app.isPackaged) {
+    const unpacked = path.join(process.resourcesPath, 'app.asar.unpacked', rel);
+    if (fs.existsSync(unpacked)) return unpacked;
+    console.error('Packaged app: expected unpacked script at', unpacked);
+  }
+  return path.join(__dirname, rel);
+}
+
+/** macOS process name for embedding in AppleScript (must not contain unescaped "). */
+function escapeProcessNameForAppleScript(name) {
+  if (!name || typeof name !== 'string' || name.length > 200) return '';
+  return name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function runOsascriptInline(source) {
+  return new Promise((resolve) => {
+    const proc = spawn('osascript', ['-e', source], { windowsHide: true });
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
+    proc.on('error', (err) => resolve({ ok: false, stderr: err.message }));
+    proc.on('close', (code) => resolve({ ok: code === 0, stderr: stderr.trim() }));
+  });
+}
+
+/** No .scpt file on disk — works inside app.asar when launched from Dock. */
+function macPasteAllInline(handle) {
+  const safe = escapeProcessNameForAppleScript(handle);
+  if (!safe) return Promise.resolve({ ok: false, stderr: 'invalid target' });
+  const src = [
+    'tell application "System Events"',
+    `if not (exists process "${safe}") then error "Process not found"`,
+    `tell process "${safe}"`,
+    'set frontmost to true',
+    'end tell',
+    'delay 0.7',
+    'keystroke "v" using command down',
+    'end tell'
+  ].join('\n');
+  return runOsascriptInline(src);
+}
+
+function macFocusInline(handle) {
+  const safe = escapeProcessNameForAppleScript(handle);
+  if (!safe) return Promise.resolve({ ok: false, stderr: 'invalid target' });
+  const src = [
+    'tell application "System Events"',
+    `if not (exists process "${safe}") then error "Process not found"`,
+    `tell process "${safe}"`,
+    'set frontmost to true',
+    'end tell',
+    'end tell'
+  ].join('\n');
+  return runOsascriptInline(src);
+}
+
+function macCopySelectionInline(handle) {
+  const safe = escapeProcessNameForAppleScript(handle);
+  if (!safe) return Promise.resolve({ ok: false, stderr: 'invalid target' });
+  const src = [
+    'tell application "System Events"',
+    `if not (exists process "${safe}") then error "Process not found"`,
+    `tell process "${safe}"`,
+    'set frontmost to true',
+    'end tell',
+    'delay 0.12',
+    'keystroke "c" using command down',
+    'end tell'
+  ].join('\n');
+  return runOsascriptInline(src);
+}
 
 // Set App User Model ID for Windows Taskbar
 if (process.platform === 'win32') {
@@ -117,6 +219,11 @@ function createWindow() {
     mainWindow = null;
   });
 
+  if (process.platform === 'darwin') {
+    mainWindow.on('blur', () => {
+      snapshotFrontmostPasteTarget();
+    });
+  }
 }
 
 function createTray() {
@@ -175,23 +282,59 @@ function toggleRecording() {
 
 function registerGlobalShortcut() {
   const isMac = process.platform === 'darwin';
-  globalShortcut.register(isMac ? 'Command+Shift+Space' : 'Ctrl+Shift+Space', () => {
+
+  const onToggleHotkey = () => {
+    snapshotFrontmostPasteTarget();
     toggleRecording();
-    // Bring window to front if hidden
     if (mainWindow && !mainWindow.isVisible()) {
       mainWindow.show();
     }
-  });
+  };
 
-  // Global hotkey for Selection Analysis
-  globalShortcut.register(isMac ? 'Command+Alt+A' : 'Ctrl+Alt+A', () => {
+  const onAnalyzeHotkey = () => {
     if (mainWindow) {
+      snapshotFrontmostPasteTarget();
       mainWindow.webContents.send('trigger-analyze');
       if (!mainWindow.isVisible()) {
         mainWindow.show();
       }
     }
-  });
+  };
+
+  const onGrammarHotkey = () => {
+    openGrammarFloatFromShortcut().catch((e) => console.error('grammar float:', e));
+  };
+
+  if (isMac) {
+    if (!globalShortcut.register('Command+Shift+Space', onToggleHotkey)) {
+      console.error('Failed to register Command+Shift+Space');
+    }
+    if (!globalShortcut.register('Ctrl+Shift+Space', onToggleHotkey)) {
+      console.error('Failed to register Ctrl+Shift+Space on macOS');
+    }
+    if (!globalShortcut.register('Command+Alt+A', onAnalyzeHotkey)) {
+      console.error('Failed to register Command+Alt+A');
+    }
+    if (!globalShortcut.register('Ctrl+Alt+A', onAnalyzeHotkey)) {
+      console.error('Failed to register Ctrl+Alt+A on macOS');
+    }
+    if (!globalShortcut.register('Command+Shift+E', onGrammarHotkey)) {
+      console.error('Failed to register Command+Shift+E');
+    }
+    if (!globalShortcut.register('Ctrl+Shift+E', onGrammarHotkey)) {
+      console.error('Failed to register Ctrl+Shift+E (grammar) on macOS');
+    }
+  } else {
+    if (!globalShortcut.register('Ctrl+Shift+Space', onToggleHotkey)) {
+      console.error('Failed to register Ctrl+Shift+Space');
+    }
+    if (!globalShortcut.register('Ctrl+Alt+A', onAnalyzeHotkey)) {
+      console.error('Failed to register Ctrl+Alt+A');
+    }
+    if (!globalShortcut.register('Ctrl+Shift+E', onGrammarHotkey)) {
+      console.error('Failed to register Ctrl+Shift+E (grammar)');
+    }
+  }
 }
 
 // IPC Handlers
@@ -205,7 +348,9 @@ ipcMain.handle('get-settings', () => {
     translateToEnglish: store.get('translateToEnglish'),
     language: store.get('language'),
     bgOpacity: store.get('bgOpacity'),
-    bgBlur: store.get('bgBlur')
+    bgBlur: store.get('bgBlur'),
+    autoGrammarClipboard: store.get('autoGrammarClipboard') !== false,
+    grammarFloatResizable: store.get('grammarFloatResizable') !== false
   };
 });
 
@@ -217,26 +362,62 @@ ipcMain.handle('save-settings', (event, settings) => {
   if (settings.autoDetectLanguage !== undefined) store.set('autoDetectLanguage', settings.autoDetectLanguage);
   if (settings.translateToEnglish !== undefined) store.set('translateToEnglish', settings.translateToEnglish);
   if (settings.language !== undefined) store.set('language', settings.language);
-  if (settings.bgOpacity !== undefined) store.set('bgOpacity', settings.bgOpacity);
+  if (settings.bgOpacity !== undefined) {
+    store.set('bgOpacity', settings.bgOpacity);
+    broadcastGrammarFloatAppearance();
+  }
   if (settings.bgBlur !== undefined) store.set('bgBlur', settings.bgBlur);
+  if (settings.autoGrammarClipboard !== undefined) {
+    store.set('autoGrammarClipboard', settings.autoGrammarClipboard);
+    if (settings.autoGrammarClipboard === false) {
+      lastGrammarFloatPayloadText = '';
+      if (grammarFloatWindow && !grammarFloatWindow.isDestroyed()) {
+        grammarFloatWindow.hide();
+      }
+    }
+  }
+  if (settings.grammarFloatResizable !== undefined) {
+    store.set('grammarFloatResizable', settings.grammarFloatResizable);
+    applyGrammarFloatResizable();
+  }
   return true;
 });
 
 // Track the last externally focused window
 let lastExternalWindowHandle = null;
 let lastExternalWindowName = null;
-const { spawn, exec } = require('child_process');
+const { spawn, exec, spawnSync } = require('child_process');
+
+const OUR_PROCESS_NAMES = new Set(['Electron', 'Voice To Text']);
+
+/** macOS: remember which app was frontmost when the user pressed a global shortcut (before our window may steal focus). */
+function snapshotFrontmostPasteTarget() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const r = spawnSync(
+      'osascript',
+      ['-e', 'tell application "System Events" to return name of first process whose frontmost is true'],
+      { encoding: 'utf8', timeout: 3000 }
+    );
+    const name = (r.stdout || '').trim();
+    if (name && !OUR_PROCESS_NAMES.has(name)) {
+      lastExternalWindowHandle = name;
+      lastExternalWindowName = name;
+    }
+  } catch (e) {
+    console.error('snapshotFrontmostPasteTarget:', e.message);
+  }
+}
 
 ipcMain.handle('capture-selection', async () => {
+  markGrammarClipboardIgnore(3200);
   const isMac = process.platform === 'darwin';
   const originalText = clipboard.readText();
   
   try {
     const isWin = process.platform === 'win32';
     const handle = lastExternalWindowHandle || (isWin ? '0' : '');
-    const scriptPath = isWin 
-      ? path.join(__dirname, 'scripts', 'copy-selection.ps1')
-      : path.join(__dirname, 'scripts', 'macos-copy.scpt'); // Placeholder for now
+    const scriptPath = isWin ? pathToScript('copy-selection.ps1') : pathToScript('macos-copy.scpt');
 
     if (isWin) {
       await new Promise((resolve) => {
@@ -255,6 +436,9 @@ ipcMain.handle('capture-selection', async () => {
     
     // Restore original clipboard
     clipboard.writeText(originalText);
+    try {
+      prevClipboardTick = (originalText || '').trim();
+    } catch (_) {}
     
     return {
       text: capturedText,
@@ -263,57 +447,74 @@ ipcMain.handle('capture-selection', async () => {
   } catch (error) {
     console.error('Capture selection failed:', error);
     clipboard.writeText(originalText);
+    try {
+      prevClipboardTick = (originalText || '').trim();
+    } catch (_) {}
     return null;
   }
 });
 
-// Start a persistent window monitor process
+// Start a persistent window monitor process (Windows) or poll frontmost app (macOS — reliable inside packaged .app).
 let monitorProcess = null;
+let macMonitorTimer = null;
 
 function startWindowMonitor() {
-  const isWin = process.platform === 'win32';
-  const scriptPath = isWin 
-    ? path.join(__dirname, 'scripts', 'window-monitor.ps1')
-    : path.join(__dirname, 'scripts', 'macos-monitor.scpt');
+  stopWindowMonitor();
 
-  const ourHandle = mainWindow ? mainWindow.getNativeWindowHandle().readInt32LE(0) : 0;
+  const isWin = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
 
   if (isWin) {
+    const scriptPath = pathToScript('window-monitor.ps1');
+    const ourHandle = mainWindow ? mainWindow.getNativeWindowHandle().readInt32LE(0) : 0;
     monitorProcess = spawn('powershell', [
-      '-NoProfile', '-NoLogo', '-ExecutionPolicy', 'Bypass',
-      '-File', scriptPath,
-      '-ExcludeHandle', ourHandle.toString()
+      '-NoProfile',
+      '-NoLogo',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      scriptPath,
+      '-ExcludeHandle',
+      ourHandle.toString()
     ], {
       stdio: ['ignore', 'pipe', 'ignore'],
       windowsHide: true
     });
-  } else {
-    // macOS AppleScript monitor (gets frontmost app bundle ID)
-    monitorProcess = spawn('osascript', [scriptPath], {
-      stdio: ['ignore', 'pipe', 'ignore']
-    });
-  }
 
-  monitorProcess.stdout.on('data', (data) => {
-    const lines = data.toString().split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (isWin) {
-        // Parse "HANDLE:123 NAME:Slack"
+    monitorProcess.stdout.on('data', (data) => {
+      const lines = data.toString().split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
         const handleMatch = trimmed.match(/HANDLE:(\d+)/);
         const nameMatch = trimmed.match(/NAME:([^\s]+)/);
         if (handleMatch) lastExternalWindowHandle = handleMatch[1];
         if (nameMatch) lastExternalWindowName = nameMatch[1];
-      } else if (trimmed && !trimmed.startsWith('Voice To Text')) {
-        lastExternalWindowHandle = trimmed;
-        lastExternalWindowName = trimmed;
       }
-    }
-  });
+    });
 
-  monitorProcess.on('error', (err) => {
-    console.error('Window monitor error:', err);
-  });
+    monitorProcess.on('error', (err) => {
+      console.error('Window monitor error:', err);
+    });
+  } else if (isMac) {
+    macMonitorTimer = setInterval(() => {
+      try {
+        const r = spawnSync(
+          'osascript',
+          ['-e', 'tell application "System Events" to return name of first process whose frontmost is true'],
+          { encoding: 'utf8', timeout: 2000 }
+        );
+        if (r.status !== 0) return;
+        const name = (r.stdout || '').trim();
+        if (name && !OUR_PROCESS_NAMES.has(name)) {
+          lastExternalWindowHandle = name;
+          lastExternalWindowName = name;
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    }, 400);
+  }
 }
 
 function stopWindowMonitor() {
@@ -321,44 +522,499 @@ function stopWindowMonitor() {
     monitorProcess.kill();
     monitorProcess = null;
   }
+  if (macMonitorTimer !== null) {
+    clearInterval(macMonitorTimer);
+    macMonitorTimer = null;
+  }
 }
 
+async function quickGrammarScan(text) {
+  const apiKey = store.get('openaiApiKey');
+  if (!apiKey || !text || !String(text).trim()) {
+    return { noApiKey: !apiKey, hasIssues: null, summary: '' };
+  }
+  const slice = text.length > 3500 ? `${text.slice(0, 3500)}…` : text;
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Reply with ONLY valid JSON: {"hasIssues":true/false,"summary":"max 12 words"}. hasIssues true only if clear spelling/grammar/wording problems exist.'
+          },
+          { role: 'user', content: slice }
+        ],
+        temperature: 0.2,
+        max_tokens: 80
+      })
+    });
+    if (!response.ok) return { noApiKey: false, hasIssues: null, summary: '' };
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return { noApiKey: false, hasIssues: null, summary: '' };
+    let raw = String(content).trim();
+    raw = raw.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
+    const j = JSON.parse(raw);
+    return {
+      noApiKey: false,
+      hasIssues: !!j.hasIssues,
+      summary: String(j.summary || '').slice(0, 120)
+    };
+  } catch {
+    return { noApiKey: false, hasIssues: null, summary: '' };
+  }
+}
+
+async function captureSelectionTextForFloat() {
+  markGrammarClipboardIgnore(3200);
+  const isWin = process.platform === 'win32';
+  const originalText = clipboard.readText();
+  const handle = lastExternalWindowHandle || (isWin ? '0' : '');
+  if (!isWin && (!handle || handle === '')) {
+    return { text: '', err: 'no-target' };
+  }
+  try {
+    if (isWin) {
+      const scriptPath = pathToScript('copy-selection.ps1');
+      await new Promise((resolve) => {
+        exec(
+          `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -TargetHandle "${handle}"`,
+          { windowsHide: true },
+          () => resolve()
+        );
+      });
+      await new Promise((r) => setTimeout(r, 120));
+    } else {
+      const r = await macCopySelectionInline(handle);
+      if (!r.ok) return { text: '', err: 'copy-failed' };
+      await new Promise((r2) => setTimeout(r2, 220));
+    }
+    const captured = clipboard.readText();
+    clipboard.writeText(originalText);
+    try {
+      prevClipboardTick = (originalText || '').trim();
+    } catch (_) {}
+    return { text: captured || '' };
+  } catch (e) {
+    clipboard.writeText(originalText);
+    try {
+      prevClipboardTick = (originalText || '').trim();
+    } catch (_) {}
+    return { text: '', err: String(e.message || e) };
+  }
+}
+
+function applyGrammarFloatResizable() {
+  if (!grammarFloatWindow || grammarFloatWindow.isDestroyed()) return;
+  grammarFloatWindow.setResizable(store.get('grammarFloatResizable') !== false);
+}
+
+function grammarFloatBgOpacityOrDefault() {
+  const o = store.get('bgOpacity');
+  if (typeof o === 'number' && Number.isFinite(o)) return o;
+  const p = parseFloat(o);
+  return Number.isFinite(p) ? p : 0.85;
+}
+
+/** Keep float UI glass opacity in sync with main app Settings → Transparency. */
+function broadcastGrammarFloatAppearance() {
+  if (!grammarFloatWindow || grammarFloatWindow.isDestroyed()) return;
+  grammarFloatWindow.webContents.send('grammar-float-appearance', {
+    bgOpacity: grammarFloatBgOpacityOrDefault()
+  });
+}
+
+function ensureGrammarFloatWindow() {
+  if (grammarFloatWindow && !grammarFloatWindow.isDestroyed()) {
+    return grammarFloatWindow;
+  }
+  const canResize = store.get('grammarFloatResizable') !== false;
+  grammarFloatWindow = new BrowserWindow({
+    width: 340,
+    height: 320,
+    show: false,
+    frame: false,
+    transparent: true,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    resizable: canResize,
+    movable: true,
+    hasShadow: true,
+    focusable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'grammar-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+  grammarFloatWindow.setMinimumSize(220, 64);
+  grammarFloatWindow.setVisibleOnAllWorkspaces(true);
+  grammarFloatWindow.loadFile('grammar-float.html');
+  grammarFloatWindow.on('closed', () => {
+    grammarFloatWindow = null;
+  });
+  return grammarFloatWindow;
+}
+
+function positionGrammarFloatNear(point, win = grammarFloatWindow) {
+  if (!win || win.isDestroyed()) return;
+  const b = win.getBounds();
+  const display = screen.getDisplayNearestPoint(point);
+  const wa = display.workArea;
+  let px = Math.round(point.x - b.width / 2);
+  let py = Math.round(point.y - b.height - 18);
+  if (py < wa.y + 8) {
+    py = Math.round(point.y + 20);
+  }
+  px = Math.max(wa.x + 6, Math.min(px, wa.x + wa.width - b.width - 6));
+  py = Math.max(wa.y + 6, Math.min(py, wa.y + wa.height - b.height - 6));
+  win.setPosition(px, py);
+}
+
+async function pushGrammarFloatPayload(text, point, { focusWindow }) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+
+  const scan = await quickGrammarScan(t);
+  const win = ensureGrammarFloatWindow();
+  lastGrammarFloatPayloadText = t;
+  const payload = {
+    text: t,
+    hasIssues: scan.hasIssues,
+    summary: scan.summary || '',
+    noApiKey: !!scan.noApiKey,
+    bgOpacity: grammarFloatBgOpacityOrDefault()
+  };
+  const push = () => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('grammar-init', payload);
+    }
+  };
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', push);
+  } else {
+    push();
+  }
+  positionGrammarFloatNear(point, win);
+  if (focusWindow) {
+    win.show();
+    win.focus();
+  } else if (typeof win.showInactive === 'function') {
+    win.showInactive();
+  } else {
+    win.show();
+  }
+  win.setAlwaysOnTop(true, 'floating');
+  return true;
+}
+
+function grammarClipboardFollowsCopyEnabled() {
+  if (process.platform === 'darwin') return false;
+  return store.get('autoGrammarClipboard') !== false;
+}
+
+function startGrammarClipboardWatcher() {
+  setInterval(() => {
+    if (!grammarClipboardFollowsCopyEnabled()) return;
+    if (Date.now() < grammarClipboardIgnoreUntil) return;
+    if (grammarFloatOpening) return;
+
+    let raw = '';
+    try {
+      raw = clipboard.readText();
+    } catch {
+      return;
+    }
+    const text = (raw || '').trim();
+
+    if (text.length < 2 || text.length > 80000) {
+      prevClipboardTick = text;
+      return;
+    }
+
+    if (text === prevClipboardTick) return;
+    prevClipboardTick = text;
+
+    if (grammarFloatWindow && !grammarFloatWindow.isDestroyed() && grammarFloatWindow.isVisible()) {
+      if (text === lastGrammarFloatPayloadText) return;
+    }
+
+    grammarFloatOpening = true;
+    (async () => {
+      try {
+        const point = screen.getCursorScreenPoint();
+        await pushGrammarFloatPayload(text, point, { focusWindow: false });
+      } catch (e) {
+        console.error('grammar clipboard watcher:', e);
+      } finally {
+        grammarFloatOpening = false;
+      }
+    })();
+  }, 850);
+}
+
+async function openGrammarFloatFromShortcut() {
+  snapshotFrontmostPasteTarget();
+  const point = screen.getCursorScreenPoint();
+  const { text, err } = await captureSelectionTextForFloat();
+  if (!text || !text.trim()) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app-toast', {
+        message:
+          err === 'no-target'
+            ? 'Click the app that has your selection, then try the shortcut again.'
+            : process.platform === 'darwin'
+              ? 'Highlight text in the other app, then press ⌘⇧E (or Ctrl⇧E).'
+              : 'Highlight text in the other app, then copy (Ctrl+C) or press Ctrl+Shift+E.',
+        type: 'warning'
+      });
+    }
+    return;
+  }
+  await pushGrammarFloatPayload(text, point, { focusWindow: true });
+}
+
+function classifyMacPasteError(stderr) {
+  const s = (stderr || '').toLowerCase();
+  if (
+    s.includes('empty paste target') ||
+    s.includes('missing paste target') ||
+    s.includes('process not found')
+  ) {
+    return 'no-target';
+  }
+  if (
+    s.includes('not authorized') ||
+    s.includes('-1743') ||
+    s.includes('erraeeventnotpermitted') ||
+    s.includes('event not permitted')
+  ) {
+    return 'accessibility';
+  }
+  return 'unknown';
+}
+
+ipcMain.handle('open-accessibility-settings', async () => {
+  if (process.platform === 'darwin') {
+    const url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility';
+    spawn('open', [url], { detached: true, stdio: 'ignore' });
+  }
+  return true;
+});
+
 ipcMain.handle('type-text', async (event, text) => {
-  if (!text || text.trim().length === 0) return false;
+  if (!text || text.trim().length === 0) {
+    return { ok: false, reason: 'empty' };
+  }
 
   try {
+    markGrammarClipboardIgnore(5000);
     const previousClipboard = clipboard.readText();
     clipboard.writeText(text);
 
     const isWin = process.platform === 'win32';
+    if (!isWin) {
+      snapshotFrontmostPasteTarget();
+    }
     const handle = lastExternalWindowHandle || (isWin ? '0' : '');
-    const scriptPath = isWin 
-      ? path.join(__dirname, 'scripts', 'paste-helper.ps1')
-      : path.join(__dirname, 'scripts', 'macos-paste.scpt');
+    const winScriptPath = pathToScript('paste-helper.ps1');
 
-    return new Promise((resolve) => {
-      const cmd = isWin 
-        ? `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -TargetHandle "${handle}"`
-        : `osascript "${scriptPath}" "${handle}"`;
+    const scheduleClipboardRestore = () => {
+      setTimeout(() => {
+        clipboard.writeText(previousClipboard || '');
+        try {
+          prevClipboardTick = (clipboard.readText() || '').trim();
+        } catch (_) {}
+        markGrammarClipboardIgnore(600);
+      }, 1200);
+    };
 
-      exec(cmd, { windowsHide: true }, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`${isWin ? 'PowerShell' : 'AppleScript'} Error:`, error);
-        }
-        
-        // Restore previous clipboard after a short delay
-        setTimeout(() => {
-          clipboard.writeText(previousClipboard || '');
-        }, 800);
-        resolve(!error);
+    if (isWin) {
+      return await new Promise((resolve) => {
+        exec(
+          `powershell -NoProfile -ExecutionPolicy Bypass -File "${winScriptPath}" -TargetHandle "${handle}"`,
+          { windowsHide: true },
+          (error, stdout, stderr) => {
+            scheduleClipboardRestore();
+            if (error) console.error('PowerShell paste error:', error, stderr);
+            resolve({ ok: !error, reason: error ? 'unknown' : undefined, stderr: stderr || undefined });
+          }
+        );
       });
-    });
+    }
+
+    // macOS: inline AppleScript only (no .scpt path) so Dock / installed .app works without unpacking scripts.
+    if (!handle || handle === '') {
+      scheduleClipboardRestore();
+      return { ok: false, reason: 'no-target', stderr: 'Empty paste target' };
+    }
+
+    await sleep(80);
+
+    let pasteAllResult = await macPasteAllInline(handle);
+    if (!pasteAllResult.ok) {
+      console.error('macOS inline paste failed:', pasteAllResult.stderr, 'trying focus + nut-js');
+    }
+
+    if (!pasteAllResult.ok) {
+      const focusResult = await macFocusInline(handle);
+      if (!focusResult.ok) {
+        scheduleClipboardRestore();
+        console.error('macOS focus failed:', focusResult.stderr);
+        const reason = classifyMacPasteError(focusResult.stderr || '');
+        return {
+          ok: false,
+          reason,
+          stderr: focusResult.stderr || undefined
+        };
+      }
+
+      await sleep(650);
+
+      let nutOk = false;
+      try {
+        await keyboard.pressKey(Key.LeftCmd, Key.V);
+        await keyboard.releaseKey(Key.LeftCmd, Key.V);
+        nutOk = true;
+      } catch (err) {
+        console.error('nut-js Cmd+V failed, trying AppleScript keystroke:', err);
+      }
+
+      if (!nutOk) {
+        const pasteOk = await new Promise((resolve) => {
+          exec(
+            'osascript -e \'tell application "System Events" to keystroke "v" using command down\'',
+            { windowsHide: true },
+            (error, stdout, stderr) => {
+              if (error) console.error('AppleScript Cmd+V fallback failed:', error, stderr);
+              resolve(!error);
+            }
+          );
+        });
+        if (!pasteOk) {
+          scheduleClipboardRestore();
+          return {
+            ok: false,
+            reason: 'paste-failed',
+            stderr:
+              'All paste methods failed — enable Accessibility for Voice To Text, click the target field first, then try again'
+          };
+        }
+      }
+    }
+
+    scheduleClipboardRestore();
+    return { ok: true };
   } catch (error) {
     console.error('Failed to type text:', error);
-    return false;
+    return { ok: false, reason: 'unknown', stderr: error.message };
   }
 });
 
+const GRAMMAR_AI_PROMPTS = {
+  fix: 'Fix any spelling, grammar, and punctuation errors in the following text. Preserve the original meaning and style exactly. Return ONLY the corrected text.',
+  refining:
+    'Rephrase the following text to be clearer, more concise, and have a better flow. Preserve the original intent. Return ONLY the refined text.',
+  professional:
+    'Rewrite the following text in a formal, professional business tone suitable for an email or report. Return ONLY the rewritten text.',
+  summary:
+    'Create a very concise summary of the following text using bullet points if appropriate. Return ONLY the summary.',
+  reply:
+    'Draft a helpful, polite, and concise reply to the following message. Adapt to the tone of the message. Return ONLY the reply text.',
+  shorten:
+    'Shorten the following text significantly while keeping the core message and all important facts. Return ONLY the shortened text.',
+  expand:
+    'Expand the following text by adding more detail and professional polish while maintaining the original intent. Return ONLY the expanded text.'
+};
+
+ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstruction }) => {
+  const apiKey = store.get('openaiApiKey');
+  if (!apiKey) {
+    return { ok: false, error: 'Set OpenAI API key in Voice To Text settings.' };
+  }
+  const t = String(text || '').trim();
+  if (!t) {
+    return { ok: false, error: 'No text to transform.' };
+  }
+
+  let userContent;
+  if (type === 'custom') {
+    const instr = String(customInstruction || '').trim();
+    if (!instr) {
+      return { ok: false, error: 'Enter an instruction first.' };
+    }
+    userContent = `${instr}\n\nText: "${t}"`;
+  } else {
+    const prompt = GRAMMAR_AI_PROMPTS[type];
+    if (!prompt) {
+      return { ok: false, error: 'Unknown action.' };
+    }
+    userContent = `${prompt}\n\nText: "${t}"`;
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a helpful writing assistant. Return ONLY the requested transformed text with no preamble or explanation.'
+          },
+          { role: 'user', content: userContent }
+        ],
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      const msg = errBody.error?.message || 'AI request failed';
+      return { ok: false, error: msg };
+    }
+
+    const data = await response.json();
+    const result = data.choices[0].message.content.trim().replace(/^"|"$/g, '');
+    return { ok: true, result };
+  } catch (e) {
+    console.error('grammar-ai-action:', e);
+    return { ok: false, error: e.message || 'AI failed' };
+  }
+});
+
+ipcMain.handle('grammar-float-close', () => {
+  lastGrammarFloatPayloadText = '';
+  if (grammarFloatWindow && !grammarFloatWindow.isDestroyed()) {
+    grammarFloatWindow.hide();
+  }
+  return true;
+});
+
+ipcMain.on('grammar-float-resize', (_event, { width, height }) => {
+  if (!grammarFloatWindow || grammarFloatWindow.isDestroyed()) return;
+  const w = Math.max(56, Math.round(Number(width) || 56));
+  const h = Math.max(56, Math.round(Number(height) || 56));
+  grammarFloatWindow.setSize(w, h);
+});
+
+ipcMain.on('grammar-float-set-resizable', (_event, { enabled }) => {
+  if (!grammarFloatWindow || grammarFloatWindow.isDestroyed()) return;
+  grammarFloatWindow.setResizable(!!enabled);
+});
 
 ipcMain.handle('minimize-window', () => {
   if (mainWindow) mainWindow.minimize();
@@ -382,12 +1038,53 @@ ipcMain.handle('set-recording-state', (event, s) => {
   isRecording = s;
 });
 
+ipcMain.handle('is-accessibility-trusted', () => {
+  if (process.platform !== 'darwin') return true;
+  return systemPreferences.isTrustedAccessibilityClient(false);
+});
+
+/** Installed .app is a different macOS identity than `npm run dev` (Electron / Terminal). Auto-paste needs Accessibility ON for Voice To Text. */
+function promptPackagedMacAccessibilityIfNeeded() {
+  if (process.platform !== 'darwin' || !app.isPackaged) return;
+  if (systemPreferences.isTrustedAccessibilityClient(false)) return;
+
+  setTimeout(() => {
+    if (!mainWindow) return;
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Voice To Text',
+        message: 'Turn ON Accessibility for “Voice To Text”',
+        detail:
+          'Auto-paste only works if this app is allowed in System Settings → Privacy & Security → Accessibility.\n\nWhen you run “npm run dev”, macOS lists “Electron” or “Terminal” — that is a different entry. The installed app needs its own toggle ON (blue).',
+        buttons: ['Open Accessibility settings', 'OK'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          spawn('open', ['x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'], {
+            detached: true,
+            stdio: 'ignore'
+          });
+        }
+      });
+  }, 1200);
+}
+
 // App lifecycle
 app.whenReady().then(() => {
+  try {
+    prevClipboardTick = (clipboard.readText() || '').trim();
+  } catch (_) {
+    prevClipboardTick = '';
+  }
   createWindow();
   createTray();
   registerGlobalShortcut();
   startWindowMonitor();
+  startGrammarClipboardWatcher();
+  promptPackagedMacAccessibilityIfNeeded();
 });
 
 app.on('will-quit', () => {

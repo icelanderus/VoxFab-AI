@@ -1,12 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
+
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
   // Text typing into other apps
   typeText: (text) => ipcRenderer.invoke('type-text', text),
+  openAccessibilitySettings: () => ipcRenderer.invoke('open-accessibility-settings'),
 
   // Local Whisper transcription (runs in main process)
   transcribeLocal: (audioData, language) => ipcRenderer.invoke('transcribe-local', Array.from(audioData), language),
@@ -29,5 +32,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onTriggerAnalyze: (callback) => {
     ipcRenderer.on('trigger-analyze', () => callback());
+  },
+
+  onAppToast: (callback) => {
+    ipcRenderer.on('app-toast', (_event, payload) => callback(payload));
   }
 });
