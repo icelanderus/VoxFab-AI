@@ -95,8 +95,50 @@ const elements = {
   aiThinking: document.getElementById('ai-thinking'),
 
   // Appearance
-  bgOpacitySlider: document.getElementById('bg-opacity-slider')
+  bgOpacitySlider: document.getElementById('bg-opacity-slider'),
+  hotkeyHint: document.getElementById('hotkey-hint'),
+  autoGrammarClipboardToggle: document.getElementById('auto-grammar-clipboard-toggle'),
+  assistantClipboardToggle: document.getElementById('assistant-clipboard-toggle'),
+  grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle')
 };
+
+function renderHotkeyHint() {
+  if (!elements.hotkeyHint) return;
+  const isMac = window.electronAPI.platform === 'darwin';
+  if (isMac) {
+    elements.hotkeyHint.innerHTML = `
+      <span class="hotkey-hint-inner">
+        <span class="hotkey-hint-group">
+          <kbd>⌘</kbd><kbd>⇧</kbd><kbd>E</kbd>
+          <span class="hotkey-hint-cap">Assistant</span>
+        </span>
+        <span class="hotkey-hint-gap">·</span>
+        <span class="hotkey-hint-group">
+          <kbd>⌘</kbd><kbd>⇧</kbd><kbd>Space</kbd>
+          <span class="hotkey-hint-cap">Record</span>
+        </span>
+      </span>`;
+  } else {
+    elements.hotkeyHint.innerHTML = `
+      <span class="hotkey-hint-inner">
+        <span class="hotkey-hint-group">
+          <span class="hotkey-hint-mark" title="Quick toggle">✦</span>
+          <kbd>Ctrl</kbd><kbd>C</kbd>
+          <span class="hotkey-hint-cap">Assistant</span>
+        </span>
+        <span class="hotkey-hint-gap">·</span>
+        <span class="hotkey-hint-group">
+          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>Space</kbd>
+          <span class="hotkey-hint-cap">Record</span>
+        </span>
+        <span class="hotkey-hint-gap">·</span>
+        <span class="hotkey-hint-group">
+          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>E</kbd>
+          <span class="hotkey-hint-cap">Capture</span>
+        </span>
+      </span>`;
+  }
+}
 
 // ============================================
 // Initialization
@@ -106,6 +148,14 @@ async function init() {
   setupEventListeners();
   setStatus('ready', 'Ready');
   updateAiToolbarVisibility();
+
+  renderHotkeyHint();
+  if (elements.micButton) {
+    elements.micButton.title =
+      window.electronAPI.platform === 'darwin'
+        ? 'Click to start recording (⌘⇧Space or Ctrl⇧Space)'
+        : 'Click to start recording (Ctrl+Shift+Space)';
+  }
 
   // Listen for global hotkey from main process
   window.electronAPI.onToggleRecording((isRecording) => {
@@ -129,6 +179,32 @@ async function init() {
       setTimeout(() => elements.progressContainer.classList.add('hidden'), 800);
     }
   });
+
+  if (typeof window.electronAPI.onAppToast === 'function') {
+    window.electronAPI.onAppToast(({ message, type }) => {
+      const t = type === 'warning' || type === 'error' ? type : 'success';
+      showToast(message, t, { duration: type === 'warning' ? 5500 : 4000 });
+    });
+  }
+}
+
+function syncAssistantClipboardToggles(checked) {
+  if (elements.autoGrammarClipboardToggle) {
+    elements.autoGrammarClipboardToggle.checked = checked;
+  }
+  if (elements.assistantClipboardToggle) {
+    elements.assistantClipboardToggle.checked = checked;
+  }
+}
+
+function getAssistantClipboardEnabledForQuickSave() {
+  if (elements.assistantClipboardToggle) {
+    return elements.assistantClipboardToggle.checked;
+  }
+  if (elements.autoGrammarClipboardToggle) {
+    return elements.autoGrammarClipboardToggle.checked;
+  }
+  return state.settings.autoGrammarClipboard !== false;
 }
 
 async function loadSettings() {
@@ -148,7 +224,11 @@ async function loadSettings() {
   elements.languageSelect.value = state.settings.language || 'en';
   elements.openaiKey.value = state.settings.openaiApiKey || '';
   elements.googleKey.value = state.settings.googleApiKey || '';
-  
+  syncAssistantClipboardToggles(state.settings.autoGrammarClipboard !== false);
+  if (elements.grammarFloatResizableToggle) {
+    elements.grammarFloatResizableToggle.checked = state.settings.grammarFloatResizable !== false;
+  }
+
   // Appearance
   const opacity = state.settings.bgOpacity !== undefined ? state.settings.bgOpacity : 0.85;
   elements.bgOpacitySlider.value = opacity;
@@ -187,6 +267,21 @@ function setupEventListeners() {
   elements.settingsToggle.addEventListener('click', toggleSettings);
   elements.settingsBack.addEventListener('click', toggleSettings);
   elements.saveSettingsBtn.addEventListener('click', saveSettings);
+  if (elements.autoGrammarClipboardToggle) {
+    elements.autoGrammarClipboardToggle.addEventListener('change', () => {
+      syncAssistantClipboardToggles(elements.autoGrammarClipboardToggle.checked);
+      saveQuickSettings();
+    });
+  }
+  if (elements.assistantClipboardToggle) {
+    elements.assistantClipboardToggle.addEventListener('change', () => {
+      syncAssistantClipboardToggles(elements.assistantClipboardToggle.checked);
+      saveQuickSettings();
+    });
+  }
+  if (elements.grammarFloatResizableToggle) {
+    elements.grammarFloatResizableToggle.addEventListener('change', saveQuickSettings);
+  }
   elements.engineSelect.addEventListener('change', updateApiKeyVisibility);
   elements.autoDetectToggle.addEventListener('change', () => {
     elements.autoDetectToggleSettings.checked = elements.autoDetectToggle.checked;
@@ -303,14 +398,19 @@ async function analyzeExistingText() {
     if (aiResponse) {
       state.previousText = text;
       elements.transcriptionText.textContent = aiResponse;
-      
+
+      let autoPasteOk = true;
       if (state.autoType) {
-        await window.electronAPI.typeText(aiResponse);
+        const pasteResult = await window.electronAPI.typeText(aiResponse);
+        autoPasteOk = pasteResult.ok;
+        if (!autoPasteOk) notifyPasteResult(pasteResult);
       }
-      
+
       setStatus('ready', 'Analysis complete');
       updateAiToolbarVisibility();
-      showToast('AI analysis complete!', 'success');
+      if (autoPasteOk || !state.autoType) {
+        showToast('AI analysis complete!', 'success');
+      }
     }
   } catch (error) {
     console.error('Analysis error:', error);
@@ -530,14 +630,18 @@ async function processAudio(audioBlob) {
       const separator = currentText && currentText.trim() ? ' ' : '';
       elements.transcriptionText.textContent = (currentText || '') + separator + text.trim();
 
-      // Auto-type if enabled
+      let autoPasteOk = true;
       if (state.autoType) {
-        await window.electronAPI.typeText(text.trim());
+        const pasteResult = await window.electronAPI.typeText(text.trim());
+        autoPasteOk = pasteResult.ok;
+        if (!autoPasteOk) notifyPasteResult(pasteResult);
       }
 
       setStatus('ready', 'Done! Ready for next input');
       updateAiToolbarVisibility();
-      showToast('Transcription complete!', 'success');
+      if (autoPasteOk || !state.autoType) {
+        showToast('Transcription complete!', 'success');
+      }
     } else {
       setStatus('ready', 'No speech detected');
       showToast('No speech detected. Try again.', 'error');
@@ -775,7 +879,13 @@ async function saveSettings() {
     autoDetectLanguage: elements.autoDetectToggleSettings.checked,
     translateToEnglish: elements.translateToggleSettings.checked,
     language: elements.languageSelect.value,
-    bgOpacity: parseFloat(elements.bgOpacitySlider.value)
+    bgOpacity: parseFloat(elements.bgOpacitySlider.value),
+    autoGrammarClipboard: elements.autoGrammarClipboardToggle
+      ? elements.autoGrammarClipboardToggle.checked
+      : state.settings.autoGrammarClipboard !== false,
+    grammarFloatResizable: elements.grammarFloatResizableToggle
+      ? elements.grammarFloatResizableToggle.checked
+      : state.settings.grammarFloatResizable !== false
   };
 
   await window.electronAPI.saveSettings(settings);
@@ -784,6 +894,10 @@ async function saveSettings() {
   state.autoType = settings.autoType;
   state.autoDetectLanguage = settings.autoDetectLanguage;
   state.translateToEnglish = settings.translateToEnglish;
+  syncAssistantClipboardToggles(settings.autoGrammarClipboard !== false);
+  if (elements.grammarFloatResizableToggle) {
+    elements.grammarFloatResizableToggle.checked = settings.grammarFloatResizable !== false;
+  }
 
   // Keep main toggles in sync
   elements.autoDetectToggle.checked = state.autoDetectLanguage;
@@ -805,7 +919,11 @@ async function saveQuickSettings() {
     autoType: elements.autoTypeToggle.checked,
     autoDetectLanguage: elements.autoDetectToggle.checked,
     translateToEnglish: elements.translateToggle.checked,
-    bgOpacity: parseFloat(elements.bgOpacitySlider.value)
+    bgOpacity: parseFloat(elements.bgOpacitySlider.value),
+    autoGrammarClipboard: getAssistantClipboardEnabledForQuickSave(),
+    grammarFloatResizable: elements.grammarFloatResizableToggle
+      ? elements.grammarFloatResizableToggle.checked
+      : state.settings.grammarFloatResizable !== false
   };
 
   await window.electronAPI.saveSettings(settings);
@@ -819,11 +937,12 @@ async function saveQuickSettings() {
   }
   
   state.translateToEnglish = settings.translateToEnglish;
-  
+  syncAssistantClipboardToggles(settings.autoGrammarClipboard !== false);
+
   // Keep settings toggles in sync
   elements.autoDetectToggleSettings.checked = state.autoDetectLanguage;
   elements.translateToggleSettings.checked = state.translateToEnglish;
-  
+
   console.log('Quick settings saved:', settings);
 }
 
@@ -994,11 +1113,11 @@ async function typeTranscription() {
   const text = elements.transcriptionText.textContent;
   if (!text) return;
 
-  const success = await window.electronAPI.typeText(text);
-  if (success) {
+  const result = await window.electronAPI.typeText(text);
+  if (result.ok) {
     showToast('Text typed into focused app!', 'success');
   } else {
-    showToast('Failed to type text', 'error');
+    notifyPasteResult(result);
   }
 }
 
@@ -1010,26 +1129,65 @@ function clearTranscription() {
 // ============================================
 // Toast Notifications
 // ============================================
-function showToast(message, type = 'success') {
-  // Remove existing toast
+function notifyPasteResult(result) {
+  const isMac = window.electronAPI.platform === 'darwin';
+  const blocked = result && result.reason === 'accessibility';
+  const noTarget = result && result.reason === 'no-target';
+  const pasteFailed = result && result.reason === 'paste-failed';
+  const pasteHint = isMac ? '⌘V' : 'Ctrl+V';
+  let msg;
+  let showAccBtn = false;
+  if (blocked && isMac) {
+    msg =
+      'macOS blocked auto-paste: enable Accessibility for this app. If prompted, allow System Events (Automation).';
+    showAccBtn = true;
+  } else if (noTarget) {
+    msg = `No target app remembered. Click the field where text should go (e.g. Composer), then try again — or press ${pasteHint} to paste manually.`;
+  } else if (pasteFailed && isMac) {
+    msg = `Auto-paste failed. Turn on Accessibility for the exact app you run (Voice To Text from Applications, or Electron if npm run dev). Click the target field, try again — or ${pasteHint} to paste.`;
+    showAccBtn = true;
+  } else {
+    msg = `Could not paste into the other app. Text is on the clipboard — press ${pasteHint} in that window.`;
+  }
+  showToast(msg, 'error', {
+    duration: blocked && isMac ? 14000 : noTarget ? 9000 : pasteFailed ? 12000 : 7000,
+    actionLabel: showAccBtn ? 'Open Accessibility…' : undefined,
+    onAction: showAccBtn ? () => window.electronAPI.openAccessibilitySettings() : undefined
+  });
+}
+
+function showToast(message, type = 'success', options = {}) {
+  const { duration = 2500, actionLabel, onAction } = options;
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
 
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+
+  const msgEl = document.createElement('div');
+  msgEl.className = 'toast-message';
+  msgEl.textContent = message;
+  toast.appendChild(msgEl);
+
+  if (actionLabel && typeof onAction === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = actionLabel;
+    btn.addEventListener('click', () => onAction());
+    toast.appendChild(btn);
+  }
+
   document.body.appendChild(toast);
 
-  // Animate in
   requestAnimationFrame(() => {
     toast.classList.add('show');
   });
 
-  // Remove after 2.5s
   setTimeout(() => {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 400);
-  }, 2500);
+  }, duration);
 }
 
 // ============================================

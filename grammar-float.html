@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self'; connect-src https://api.openai.com" />
+  <title>Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="grammar-float.css" />
+</head>
+<body class="grammar-float-body">
+  <div id="root" class="grammar-float-root">
+    <div class="float-chrome-row float-chrome-header">
+      <div class="fab-dot-wrap">
+        <button type="button" id="fab" class="fab-dot-btn state-idle" title="Tap: toggle panel" aria-label="Assistant"></button>
+      </div>
+      <div class="float-header-mid">
+        <p class="panel-hint header-hint-inline" id="hint"></p>
+      </div>
+      <button type="button" id="float-close" class="title-btn float-close-btn close-btn" title="Close">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+    <div class="grammar-panel open" id="panel">
+      <div class="ai-thinking-dots hidden thinking-float" id="grammar-thinking">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="transcription-footer grammar-ai-toolbar">
+        <div class="ai-actions-group" id="actions"></div>
+      </div>
+      <div class="custom-prompt-container grammar-custom hidden" id="grammar-custom-prompt">
+        <input type="text" id="custom-prompt-input" placeholder="Custom instruction…" />
+        <button type="button" id="custom-prompt-go">Go</button>
+      </div>
+      <div class="grammar-result" id="result"></div>
+      <div class="apply-row" id="apply-row" style="display: none">
+        <button type="button" id="apply-paste">Apply & paste</button>
+        <button type="button" class="secondary" id="dismiss-result">Dismiss</button>
+      </div>
+    </div>
+  </div>
+  <script src="grammar-float.js"></script>
+</body>
+</html>

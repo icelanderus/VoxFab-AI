@@ -1,0 +1,302 @@
+/* global grammarAPI */
+
+let selectedText = '';
+let lastResult = '';
+let autoType = true;
+
+/** Same actions and SVG icons as main window `index.html` AI toolbar (no emoji labels). */
+const ACTION_DEFS = [
+  {
+    type: 'fix',
+    id: 'ai-fix-btn',
+    title: 'Fix & Polish',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2"/><path d="m19 3-1 2"/><path d="m5 21 1-2"/><path d="m19 21-1-2"/></svg>'
+  },
+  {
+    type: 'refining',
+    id: 'ai-refine-btn',
+    title: 'Refine',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
+  },
+  {
+    type: 'professional',
+    id: 'ai-formal-btn',
+    title: 'Professional',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12 10 12 10 16 6 16z"/><path d="M6 4 10 4 10 8 6 8z"/><path d="M14 12 18 12 18 16 14 16z"/><path d="M14 4 18 4 18 8 14 8z"/><path d="M2 18h20"/></svg>'
+  },
+  {
+    type: 'summary',
+    id: 'ai-summary-btn',
+    title: 'Summarize',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>'
+  },
+  {
+    type: 'reply',
+    id: 'ai-reply-btn',
+    title: 'Draft Reply',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17l2 2 4-4"/><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.4 8.24 8.24 0 0 1 3.8.9"/></svg>'
+  },
+  {
+    type: 'shorten',
+    id: 'ai-shorten-btn',
+    title: 'Shorten',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6m0 0l-3-3m3 3l-3 3"/><path d="M20 10h-6m0 0l3-3m-3 3l3 3"/></svg>'
+  },
+  {
+    type: 'expand',
+    id: 'ai-expand-btn',
+    title: 'Expand',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4L7 7l3 3"/><path d="M14 20l3-3-3-3"/><path d="M2 12h20"/></svg>'
+  }
+];
+
+const root = document.getElementById('root');
+const fab = document.getElementById('fab');
+const panel = document.getElementById('panel');
+const hint = document.getElementById('hint');
+const thinking = document.getElementById('grammar-thinking');
+
+function setHintLine(text) {
+  const s = text == null ? '' : String(text);
+  hint.textContent = s;
+  hint.removeAttribute('title');
+  const mid = hint.closest('.float-header-mid');
+  if (mid) {
+    mid.title = s.length > 42 ? s : '';
+  }
+}
+const actionsEl = document.getElementById('actions');
+const resultEl = document.getElementById('result');
+const applyRow = document.getElementById('apply-row');
+const applyPaste = document.getElementById('apply-paste');
+const dismissResult = document.getElementById('dismiss-result');
+const customIn = document.getElementById('custom-prompt-input');
+const customGo = document.getElementById('custom-prompt-go');
+const customContainer = document.getElementById('grammar-custom-prompt');
+const floatClose = document.getElementById('float-close');
+
+const CUSTOM_BTN_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+
+function toggleGrammarCustomPrompt() {
+  const nowHidden = customContainer.classList.toggle('hidden');
+  if (!nowHidden) {
+    customIn.focus();
+  }
+  scheduleFit();
+}
+
+const FAB_DRAG_HINT = ' · Tap: panel · drag top bar to move';
+
+function applyFloatBgOpacity(raw) {
+  const n = typeof raw === 'number' ? raw : parseFloat(raw);
+  if (!Number.isFinite(n)) return;
+  document.documentElement.style.setProperty('--bg-opacity', String(n));
+}
+
+if (typeof grammarAPI.onAppearance === 'function') {
+  grammarAPI.onAppearance((p) => {
+    if (p && p.bgOpacity !== undefined) applyFloatBgOpacity(p.bgOpacity);
+  });
+}
+
+let lastFitW = 0;
+let lastFitH = 0;
+let fitDebounceTimer = null;
+
+function setFabVisual(payload) {
+  fab.classList.remove('state-ok', 'state-warn', 'state-neutral', 'state-idle');
+  if (payload.noApiKey) {
+    fab.classList.add('state-neutral');
+    fab.title = `Add API key in main app${FAB_DRAG_HINT}`;
+    return;
+  }
+  if (payload.hasIssues === true) {
+    fab.classList.add('state-warn');
+    fab.title = `${payload.summary || 'Possible issues — review below'}${FAB_DRAG_HINT}`;
+  } else if (payload.hasIssues === false) {
+    fab.classList.add('state-ok');
+    fab.title = `${payload.summary || 'No obvious issues'}${FAB_DRAG_HINT}`;
+  } else {
+    fab.classList.add('state-idle');
+    fab.title = `Writing assistant${FAB_DRAG_HINT}`;
+  }
+}
+
+function fitFloatToContent() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const open = panel.classList.contains('open');
+      const r = root.getBoundingClientRect();
+      const w = Math.min(460, Math.max(open ? 300 : 80, Math.ceil(r.width) + 14));
+      const h = Math.min(780, Math.max(open ? 88 : 64, Math.ceil(r.height) + 14));
+      if (Math.abs(w - lastFitW) <= 1 && Math.abs(h - lastFitH) <= 1) return;
+      lastFitW = w;
+      lastFitH = h;
+      grammarAPI.resize(w, h);
+    });
+  });
+}
+
+function scheduleFit() {
+  if (fitDebounceTimer) clearTimeout(fitDebounceTimer);
+  fitDebounceTimer = setTimeout(() => {
+    fitDebounceTimer = null;
+    fitFloatToContent();
+  }, 48);
+}
+
+new ResizeObserver(() => {
+  scheduleFit();
+}).observe(root);
+
+function buildActionButtons() {
+  actionsEl.innerHTML = '';
+  for (const a of ACTION_DEFS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'action-btn ai-btn';
+    b.id = a.id;
+    b.title = a.title;
+    b.innerHTML = a.svg;
+    b.addEventListener('click', () => runAction(a.type));
+    actionsEl.appendChild(b);
+  }
+  const customBtn = document.createElement('button');
+  customBtn.type = 'button';
+  customBtn.className = 'action-btn ai-btn';
+  customBtn.id = 'ai-custom-btn';
+  customBtn.title = 'Custom Instruction';
+  customBtn.innerHTML = CUSTOM_BTN_SVG;
+  customBtn.addEventListener('click', toggleGrammarCustomPrompt);
+  actionsEl.appendChild(customBtn);
+}
+
+async function runAction(type) {
+  if (!selectedText.trim()) return;
+  const settings = await grammarAPI.getSettings();
+  if (!settings.openaiApiKey) {
+    setHintLine('Set OpenAI API key in Voice To Text → Settings.');
+    scheduleFit();
+    return;
+  }
+  thinking.classList.remove('hidden');
+  actionsEl.querySelectorAll('button').forEach((btn) => {
+    btn.disabled = true;
+  });
+  try {
+    const res = await grammarAPI.runAiAction(type, selectedText);
+    if (!res.ok) throw new Error(res.error || 'Failed');
+    lastResult = res.result || '';
+    resultEl.textContent = lastResult;
+    resultEl.classList.add('visible');
+    applyRow.style.display = 'flex';
+    setHintLine(
+      autoType ? 'Review result, then Apply & paste.' : 'Review result — Apply & paste when ready.'
+    );
+  } catch (e) {
+    setHintLine(e.message || 'AI failed');
+    resultEl.classList.remove('visible');
+    applyRow.style.display = 'none';
+  } finally {
+    thinking.classList.add('hidden');
+    actionsEl.querySelectorAll('button').forEach((btn) => {
+      btn.disabled = false;
+    });
+    scheduleFit();
+  }
+}
+
+fab.addEventListener('click', () => {
+  panel.classList.toggle('open');
+  lastFitW = 0;
+  lastFitH = 0;
+  scheduleFit();
+});
+
+floatClose.addEventListener('click', () => grammarAPI.close());
+
+applyPaste.addEventListener('click', async () => {
+  if (!lastResult) return;
+  const res = await grammarAPI.applyPaste(lastResult);
+  if (res && res.ok) {
+    grammarAPI.close();
+  } else {
+    setHintLine('Paste failed — copy manually or check Accessibility.');
+    scheduleFit();
+  }
+});
+
+dismissResult.addEventListener('click', () => {
+  lastResult = '';
+  resultEl.classList.remove('visible');
+  applyRow.style.display = 'none';
+  scheduleFit();
+});
+
+customIn.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    customGo.click();
+  }
+});
+
+customGo.addEventListener('click', async () => {
+  const instr = customIn.value.trim();
+  if (!instr || !selectedText.trim()) return;
+  thinking.classList.remove('hidden');
+  try {
+    const res = await grammarAPI.runAiAction('custom', selectedText, instr);
+    if (!res.ok) throw new Error(res.error || 'Failed');
+    lastResult = res.result || '';
+    resultEl.textContent = lastResult;
+    resultEl.classList.add('visible');
+    applyRow.style.display = 'flex';
+    customIn.value = '';
+    customContainer.classList.add('hidden');
+  } catch (e) {
+    setHintLine(e.message || 'AI failed');
+  } finally {
+    thinking.classList.add('hidden');
+    scheduleFit();
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') grammarAPI.close();
+});
+
+grammarAPI.onInit(async (payload) => {
+  applyFloatBgOpacity(payload.bgOpacity !== undefined ? payload.bgOpacity : 0.85);
+  selectedText = payload.text || '';
+  lastResult = '';
+  resultEl.textContent = '';
+  resultEl.classList.remove('visible');
+  applyRow.style.display = 'none';
+  panel.classList.add('open');
+  customIn.value = '';
+  customContainer.classList.add('hidden');
+  lastFitW = 0;
+  lastFitH = 0;
+
+  const settings = await grammarAPI.getSettings();
+  autoType = settings.autoType !== false;
+  if (typeof grammarAPI.setFloatResizable === 'function') {
+    grammarAPI.setFloatResizable(settings.grammarFloatResizable !== false);
+  }
+
+  setFabVisual(payload);
+  if (payload.noApiKey) {
+    setHintLine('Add OpenAI API key in Voice To Text settings to scan text and run AI actions.');
+  } else if (payload.hasIssues === true) {
+    setHintLine(payload.summary || 'Possible writing issues — pick an action below.');
+  } else if (payload.hasIssues === false) {
+    setHintLine(payload.summary || 'No obvious issues — optional polish below.');
+  } else {
+    setHintLine('Text from your clipboard — choose an action below.');
+  }
+
+  buildActionButtons();
+  thinking.classList.add('hidden');
+  scheduleFit();
+});

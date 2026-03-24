@@ -1,5 +1,4 @@
--- Paste into a target app by *process* name (matches System Events / our window monitor).
--- No silent fallback: if the target cannot be focused, osascript exits non-zero.
+-- Bring a process to the foreground (by System Events name). Used before sending Cmd+V from the main app.
 
 on run argv
 	if (count of argv) < 1 then error "Missing paste target (process name)"
@@ -11,7 +10,5 @@ on run argv
 		tell process targetProc
 			set frontmost to true
 		end tell
-		delay 0.55
-		keystroke "v" using command down
 	end tell
 end run

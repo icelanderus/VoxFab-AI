@@ -1,17 +1,15 @@
--- Paste into a target app by *process* name (matches System Events / our window monitor).
--- No silent fallback: if the target cannot be focused, osascript exits non-zero.
-
+-- Single osascript run: focus target process + Cmd+V (child processes cannot read paths inside app.asar; keep scripts unpacked).
 on run argv
 	if (count of argv) < 1 then error "Missing paste target (process name)"
 	set targetProc to item 1 of argv as text
-	if targetProc is "" then error "Empty paste target — focus the app where text should go, then try again"
+	if targetProc is "" then error "Empty paste target"
 
 	tell application "System Events"
 		if not (exists process targetProc) then error "Process not found: " & targetProc
 		tell process targetProc
 			set frontmost to true
 		end tell
-		delay 0.55
+		delay 0.7
 		keystroke "v" using command down
 	end tell
 end run

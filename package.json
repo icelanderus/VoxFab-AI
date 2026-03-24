@@ -1,6 +1,6 @@
 {
   "name": "my-tts-app",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "System-wide voice-to-text desktop app",
   "main": "main.js",
   "scripts": {
@@ -11,11 +11,22 @@
   "build": {
     "appId": "com.personal.voice-to-text",
     "productName": "Voice To Text",
+    "publish": null,
+    "mac": {
+      "target": ["dmg", "zip"],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.productivity"
+    },
     "win": {
       "target": ["zip", "portable"],
       "icon": "assets/icon.png",
       "sign": null
     },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/@nut-tree-fork/**/*",
+      "scripts/**/*"
+    ],
     "files": [
       "**/*",
       "!node_modules/.cache/**"

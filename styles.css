@@ -412,7 +412,8 @@ html {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 16px 20px;
   padding: 4px 0 12px 0;
   border-bottom: 1px solid var(--glass-border);
   margin-bottom: 8px;
@@ -489,10 +490,9 @@ html {
 }
 
 .transcription-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.02em;
   color: var(--text-dim);
 }
 
@@ -530,7 +530,7 @@ html {
   background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--text-primary);
   overflow-y: auto;
@@ -551,7 +551,7 @@ html {
   content: attr(data-placeholder);
   color: var(--text-dim);
   font-style: italic;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .transcription-text.processing {
@@ -581,6 +581,18 @@ html {
 .ai-actions-group {
   display: flex;
   gap: 4px;
+}
+
+/* Bordered tile look for each AI icon (matches shortcut kbd “cubes” vibe) */
+#ai-actions-toolbar .ai-actions-group .action-btn {
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
+}
+
+#ai-actions-toolbar .ai-actions-group .action-btn:hover {
+  border-color: var(--glass-border-hover);
+  background: var(--bg-tertiary);
 }
 
 .ai-btn svg {
@@ -697,8 +709,70 @@ html {
   text-align: center;
   font-size: 10px;
   color: var(--text-dim);
-  padding-top: 4px;
+  padding: 5px 10px 6px;
   flex-shrink: 0;
+  line-height: 1.35;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.hotkey-hint::-webkit-scrollbar {
+  height: 0;
+}
+
+.hotkey-hint-inner {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  white-space: nowrap;
+}
+
+.hotkey-hint-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.hotkey-hint-cap {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  margin-left: 3px;
+}
+
+.hotkey-hint-gap {
+  opacity: 0.4;
+  user-select: none;
+  padding: 0 1px;
+  flex-shrink: 0;
+}
+
+.hotkey-hint-mark {
+  font-size: 11px;
+  line-height: 1;
+  margin-right: 1px;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.hotkey-hint kbd {
+  padding: 2px 5px;
+  min-height: 17px;
+  min-width: 0;
+  font-size: 9px;
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 3px;
 }
 
 kbd {
@@ -955,6 +1029,10 @@ kbd {
   box-shadow: var(--shadow-md);
   transition: transform var(--transition-slow);
   z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: min(320px, 92vw);
 }
 
 .toast.show {
@@ -963,6 +1041,26 @@ kbd {
 
 .toast.success { border-color: var(--success); }
 .toast.error { border-color: var(--error); }
+
+.toast .toast-message {
+  line-height: 1.35;
+}
+
+.toast .toast-action {
+  margin-top: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border-hover);
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--accent-cyan);
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.toast .toast-action:hover {
+  background: rgba(0, 212, 255, 0.2);
+}
 
 
 /* ========================================

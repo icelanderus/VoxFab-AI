@@ -73,7 +73,7 @@
         </div>
 
         <div class="mic-ring" id="mic-ring">
-          <button class="mic-button" id="mic-button" title="Click to start recording (Ctrl+Shift+Space)">
+          <button class="mic-button" id="mic-button" title="Click to start recording">
             <svg class="mic-icon" id="mic-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 1C10.34 1 9 2.34 9 4V12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12V4C15 2.34 13.66 1 12 1Z" fill="white"/>
               <path d="M17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12H5C5 15.53 7.61 18.43 11 18.92V22H13V18.92C16.39 18.43 19 15.53 19 12H17Z" fill="white"/>
@@ -135,6 +135,17 @@
           </svg>
           <label class="toggle-switch mini">
             <input type="checkbox" id="translate-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Floating / writing assistant (clipboard on Win/Linux; macOS: ⌘⇧E) -->
+        <div class="quick-setting-item" id="assistant-clipboard-quick-item" title="Writing assistant: on after copy (Windows/Linux). macOS: ⌘⇧E — copy is not hooked.">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+          </svg>
+          <label class="toggle-switch mini">
+            <input type="checkbox" id="assistant-clipboard-toggle" checked>
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -268,10 +279,8 @@
         </div>
       </div>
 
-      <!-- Hotkey Hint -->
-      <div class="hotkey-hint">
-        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> to toggle from anywhere
-      </div>
+      <!-- Hotkey Hint (text set in renderer for Mac vs Windows) -->
+      <div class="hotkey-hint" id="hotkey-hint"></div>
     </div>
 
     <!-- Settings Panel (slides in) -->
@@ -307,6 +316,24 @@
         <div class="setting-group api-key-group" id="google-key-group">
           <label class="setting-label" for="google-key">Google API Key</label>
           <input type="password" id="google-key" class="setting-input" placeholder="API Key...">
+        </div>
+
+        <div class="setting-group" id="assistant-clipboard-settings-group">
+          <label class="setting-label">Writing assistant on copy</label>
+          <div class="setting-description" id="assistant-clipboard-settings-desc">Windows/Linux: open the floating assistant when the clipboard changes after copy (Ctrl+C). macOS: not used for copy (⌘C stays free); use ⌘⇧E to open the assistant.</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto-grammar-clipboard-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">Resizable assistant window</label>
+          <div class="setting-description">Drag the window edges or corners to resize; the window also shrinks to fit content when it updates.</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="grammar-float-resizable-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
         </div>
 
         <!-- Appearance -->
