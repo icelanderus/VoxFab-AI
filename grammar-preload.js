@@ -14,5 +14,8 @@ contextBridge.exposeInMainWorld('grammarAPI', {
   close: () => ipcRenderer.invoke('grammar-float-close'),
   resize: (width, height) => ipcRenderer.send('grammar-float-resize', { width, height }),
   setFloatResizable: (enabled) =>
-    ipcRenderer.send('grammar-float-set-resizable', { enabled: !!enabled })
+    ipcRenderer.send('grammar-float-set-resizable', { enabled: !!enabled }),
+  startDrag: (offset) => ipcRenderer.send('window-drag-start', offset),
+  moveDrag: () => ipcRenderer.send('window-drag-move'),
+  endDrag: () => ipcRenderer.send('window-drag-end')
 });

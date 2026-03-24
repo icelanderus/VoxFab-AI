@@ -97,8 +97,8 @@ const elements = {
   // Appearance
   bgOpacitySlider: document.getElementById('bg-opacity-slider'),
   hotkeyHint: document.getElementById('hotkey-hint'),
-  autoGrammarClipboardToggle: document.getElementById('auto-grammar-clipboard-toggle'),
-  assistantClipboardToggle: document.getElementById('assistant-clipboard-toggle'),
+  assistantEnabledToggle: document.getElementById('assistant-enabled-toggle'),
+  assistantEnabledToggleSettings: document.getElementById('assistant-enabled-toggle-settings'),
   grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle')
 };
 
@@ -122,7 +122,7 @@ function renderHotkeyHint() {
     elements.hotkeyHint.innerHTML = `
       <span class="hotkey-hint-inner">
         <span class="hotkey-hint-group">
-          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>C</kbd> / <kbd>E</kbd>
+          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>E</kbd>
           <span class="hotkey-hint-cap">Assistant</span>
         </span>
         <span class="hotkey-hint-gap">·</span>
@@ -182,30 +182,22 @@ async function init() {
   }
 }
 
-function syncAssistantClipboardToggles(checked) {
-  if (elements.autoGrammarClipboardToggle) {
-    elements.autoGrammarClipboardToggle.checked = checked;
-  }
-  if (elements.assistantClipboardToggle) {
-    elements.assistantClipboardToggle.checked = checked;
-  }
+function syncAssistantEnabledToggles(enabled) {
+  if (elements.assistantEnabledToggle) elements.assistantEnabledToggle.checked = enabled;
+  if (elements.assistantEnabledToggleSettings) elements.assistantEnabledToggleSettings.checked = enabled;
+  updateWritingAssistantButtonVisibility();
 }
 
-function getAssistantClipboardEnabledForQuickSave() {
-  if (elements.assistantClipboardToggle) {
-    return elements.assistantClipboardToggle.checked;
-  }
-  if (elements.autoGrammarClipboardToggle) {
-    return elements.autoGrammarClipboardToggle.checked;
-  }
-  return state.settings.autoGrammarClipboard !== false;
-}
-
-/** Footer “Writing assistant” matches the sparkle / Writing assistant toggle (autoGrammarClipboard). */
 function updateWritingAssistantButtonVisibility() {
   if (!elements.writingAssistantBtn) return;
-  elements.writingAssistantBtn.classList.toggle('hidden', !getAssistantClipboardEnabledForQuickSave());
+  const isEnabled = elements.assistantEnabledToggle 
+    ? elements.assistantEnabledToggle.checked 
+    : state.settings.assistantEnabled !== false;
+  elements.writingAssistantBtn.classList.toggle('hidden', !isEnabled);
 }
+
+
+
 
 async function loadSettings() {
   state.settings = await window.electronAPI.getSettings();
@@ -215,16 +207,19 @@ async function loadSettings() {
   state.translateToEnglish = state.settings.translateToEnglish !== undefined ? state.settings.translateToEnglish : false;
 
   // Update UI
-  elements.engineSelect.value = state.engine;
-  elements.autoTypeToggle.checked = state.autoType;
-  elements.autoDetectToggle.checked = state.autoDetectLanguage;
-  elements.autoDetectToggleSettings.checked = state.autoDetectLanguage;
-  elements.translateToggle.checked = state.translateToEnglish;
-  elements.translateToggleSettings.checked = state.translateToEnglish;
-  elements.languageSelect.value = state.settings.language || 'en';
-  elements.openaiKey.value = state.settings.openaiApiKey || '';
-  elements.googleKey.value = state.settings.googleApiKey || '';
-  syncAssistantClipboardToggles(state.settings.autoGrammarClipboard !== false);
+  if (elements.engineSelect) elements.engineSelect.value = state.engine;
+  if (elements.autoTypeToggle) elements.autoTypeToggle.checked = state.autoType;
+  if (elements.autoDetectToggle) elements.autoDetectToggle.checked = state.autoDetectLanguage;
+  if (elements.autoDetectToggleSettings) elements.autoDetectToggleSettings.checked = state.autoDetectLanguage;
+  if (elements.translateToggle) elements.translateToggle.checked = state.translateToEnglish;
+  if (elements.translateToggleSettings) elements.translateToggleSettings.checked = state.translateToEnglish;
+  if (elements.languageSelect) elements.languageSelect.value = state.settings.language || 'en';
+  if (elements.openaiKey) elements.openaiKey.value = state.settings.openaiApiKey || '';
+  if (elements.googleKey) elements.googleKey.value = state.settings.googleApiKey || '';
+  
+  const assistantEnabled = state.settings.assistantEnabled !== false;
+  syncAssistantEnabledToggles(assistantEnabled);
+  
   if (elements.grammarFloatResizableToggle) {
     elements.grammarFloatResizableToggle.checked = state.settings.grammarFloatResizable !== false;
   }
@@ -232,7 +227,7 @@ async function loadSettings() {
 
   // Appearance
   const opacity = state.settings.bgOpacity !== undefined ? state.settings.bgOpacity : 0.85;
-  elements.bgOpacitySlider.value = opacity;
+  if (elements.bgOpacitySlider) elements.bgOpacitySlider.value = opacity;
   applyAppearance(opacity);
 
   updateEngineBadge();
@@ -245,19 +240,21 @@ async function loadSettings() {
 // ============================================
 function setupEventListeners() {
   // Mic button
-  elements.micButton.addEventListener('click', () => {
-    if (state.isProcessing) return;
-    if (state.isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  });
+  if (elements.micButton) {
+    elements.micButton.addEventListener('click', () => {
+      if (state.isProcessing) return;
+      if (state.isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    });
+  }
 
   // Action buttons
-  elements.copyBtn.addEventListener('click', copyTranscription);
-  elements.typeBtn.addEventListener('click', typeTranscription);
-  elements.analyzeBtn.addEventListener('click', handleAnalyzeClick);
+  if (elements.copyBtn) elements.copyBtn.addEventListener('click', copyTranscription);
+  if (elements.typeBtn) elements.typeBtn.addEventListener('click', typeTranscription);
+  if (elements.analyzeBtn) elements.analyzeBtn.addEventListener('click', handleAnalyzeClick);
   if (elements.writingAssistantBtn) {
     elements.writingAssistantBtn.addEventListener('click', async () => {
       try {
@@ -267,28 +264,26 @@ function setupEventListeners() {
       }
     });
   }
-  elements.clearBtn.addEventListener('click', clearTranscription);
+  if (elements.clearBtn) elements.clearBtn.addEventListener('click', clearTranscription);
 
   // Window controls
-  elements.minimizeBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
-  elements.closeBtn.addEventListener('click', () => window.electronAPI.closeWindow());
+  if (elements.minimizeBtn) elements.minimizeBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
+  if (elements.closeBtn) elements.closeBtn.addEventListener('click', () => window.electronAPI.closeWindow());
 
   // Settings
-  elements.settingsToggle.addEventListener('click', toggleSettings);
-  elements.settingsBack.addEventListener('click', toggleSettings);
-  elements.saveSettingsBtn.addEventListener('click', saveSettings);
-  if (elements.autoGrammarClipboardToggle) {
-    elements.autoGrammarClipboardToggle.addEventListener('change', () => {
-      syncAssistantClipboardToggles(elements.autoGrammarClipboardToggle.checked);
-      updateWritingAssistantButtonVisibility();
+  if (elements.settingsToggle) elements.settingsToggle.addEventListener('click', toggleSettings);
+  if (elements.settingsBack) elements.settingsBack.addEventListener('click', toggleSettings);
+  if (elements.saveSettingsBtn) elements.saveSettingsBtn.addEventListener('click', saveSettings);
+  
+  if (elements.assistantEnabledToggle) {
+    elements.assistantEnabledToggle.addEventListener('change', () => {
+      syncAssistantEnabledToggles(elements.assistantEnabledToggle.checked);
       saveQuickSettings();
     });
   }
-  if (elements.assistantClipboardToggle) {
-    elements.assistantClipboardToggle.addEventListener('change', () => {
-      syncAssistantClipboardToggles(elements.assistantClipboardToggle.checked);
-      updateWritingAssistantButtonVisibility();
-      saveQuickSettings();
+  if (elements.assistantEnabledToggleSettings) {
+    elements.assistantEnabledToggleSettings.addEventListener('change', () => {
+      syncAssistantEnabledToggles(elements.assistantEnabledToggleSettings.checked);
     });
   }
   if (elements.grammarFloatResizableToggle) {
@@ -332,13 +327,17 @@ function setupEventListeners() {
   });
 
   // Appearance Sliders
-  elements.bgOpacitySlider.addEventListener('input', () => {
-    applyAppearance(elements.bgOpacitySlider.value);
-    saveQuickSettings();
-  });
+  if (elements.bgOpacitySlider) {
+    elements.bgOpacitySlider.addEventListener('input', () => {
+      applyAppearance(elements.bgOpacitySlider.value);
+      saveQuickSettings();
+    });
+  }
 
   // Sync toolbar visibility with text presence
-  elements.transcriptionText.addEventListener('input', updateAiToolbarVisibility);
+  if (elements.transcriptionText) {
+    elements.transcriptionText.addEventListener('input', updateAiToolbarVisibility);
+  }
 
   // Listen for global hotkey trigger
   window.electronAPI.onTriggerAnalyze(() => {
@@ -891,9 +890,9 @@ async function saveSettings() {
     translateToEnglish: elements.translateToggleSettings.checked,
     language: elements.languageSelect.value,
     bgOpacity: parseFloat(elements.bgOpacitySlider.value),
-    autoGrammarClipboard: elements.autoGrammarClipboardToggle
-      ? elements.autoGrammarClipboardToggle.checked
-      : state.settings.autoGrammarClipboard !== false,
+    assistantEnabled: elements.assistantEnabledToggleSettings
+      ? elements.assistantEnabledToggleSettings.checked
+      : (elements.assistantEnabledToggle ? elements.assistantEnabledToggle.checked : state.settings.assistantEnabled !== false),
     grammarFloatResizable: elements.grammarFloatResizableToggle
       ? elements.grammarFloatResizableToggle.checked
       : state.settings.grammarFloatResizable !== false
@@ -905,11 +904,10 @@ async function saveSettings() {
   state.autoType = settings.autoType;
   state.autoDetectLanguage = settings.autoDetectLanguage;
   state.translateToEnglish = settings.translateToEnglish;
-  syncAssistantClipboardToggles(settings.autoGrammarClipboard !== false);
+  syncAssistantEnabledToggles(settings.assistantEnabled !== false);
   if (elements.grammarFloatResizableToggle) {
     elements.grammarFloatResizableToggle.checked = settings.grammarFloatResizable !== false;
   }
-  updateWritingAssistantButtonVisibility();
 
   // Keep main toggles in sync
   elements.autoDetectToggle.checked = state.autoDetectLanguage;
@@ -932,7 +930,9 @@ async function saveQuickSettings() {
     autoDetectLanguage: elements.autoDetectToggle.checked,
     translateToEnglish: elements.translateToggle.checked,
     bgOpacity: parseFloat(elements.bgOpacitySlider.value),
-    autoGrammarClipboard: getAssistantClipboardEnabledForQuickSave(),
+    assistantEnabled: elements.assistantEnabledToggle 
+      ? elements.assistantEnabledToggle.checked 
+      : state.settings.assistantEnabled !== false,
     grammarFloatResizable: elements.grammarFloatResizableToggle
       ? elements.grammarFloatResizableToggle.checked
       : state.settings.grammarFloatResizable !== false
@@ -949,12 +949,11 @@ async function saveQuickSettings() {
   }
   
   state.translateToEnglish = settings.translateToEnglish;
-  syncAssistantClipboardToggles(settings.autoGrammarClipboard !== false);
-  updateWritingAssistantButtonVisibility();
+  syncAssistantEnabledToggles(settings.assistantEnabled !== false);
 
   // Keep settings toggles in sync
-  elements.autoDetectToggleSettings.checked = state.autoDetectLanguage;
-  elements.translateToggleSettings.checked = state.translateToEnglish;
+  if (elements.autoDetectToggleSettings) elements.autoDetectToggleSettings.checked = state.autoDetectLanguage;
+  if (elements.translateToggleSettings) elements.translateToggleSettings.checked = state.translateToEnglish;
 
   console.log('Quick settings saved:', settings);
 }
@@ -1206,3 +1205,36 @@ function showToast(message, type = 'success', options = {}) {
 // Start
 // ============================================
 init();
+setupDraggableHeader();
+
+function setupDraggableHeader() {
+  const header = document.getElementById('title-bar');
+  if (!header) return;
+
+  let isDragging = false;
+
+  header.addEventListener('mousedown', (e) => {
+    // Don't drag if clicking buttons
+    if (e.target.closest('button')) return;
+    
+    isDragging = true;
+    const offset = {
+      x: e.screenX - window.screenX,
+      y: e.screenY - window.screenY
+    };
+    window.electronAPI.startDrag(offset);
+  });
+
+  window.addEventListener('mousemove', () => {
+    if (isDragging) {
+      window.electronAPI.moveDrag();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      window.electronAPI.endDrag();
+    }
+  });
+}

@@ -99,7 +99,7 @@ html {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  -webkit-app-region: drag;
+  cursor: grab;
   border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
 }

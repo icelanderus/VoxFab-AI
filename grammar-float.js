@@ -294,3 +294,37 @@ grammarAPI.onInit(async (payload) => {
   thinking.classList.add('hidden');
   scheduleFit();
 });
+
+setupDraggableHeader();
+
+function setupDraggableHeader() {
+  const header = document.querySelector('.float-chrome-header');
+  if (!header) return;
+
+  let isDragging = false;
+
+  header.addEventListener('mousedown', (e) => {
+    // Don't drag if clicking buttons
+    if (e.target.closest('button')) return;
+    
+    isDragging = true;
+    const offset = {
+      x: e.screenX - window.screenX,
+      y: e.screenY - window.screenY
+    };
+    window.grammarAPI.startDrag(offset);
+  });
+
+  window.addEventListener('mousemove', () => {
+    if (isDragging) {
+      window.grammarAPI.moveDrag();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      window.grammarAPI.endDrag();
+    }
+  });
+}

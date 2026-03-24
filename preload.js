@@ -37,5 +37,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   onAppToast: (callback) => {
     ipcRenderer.on('app-toast', (_event, payload) => callback(payload));
-  }
+  },
+  
+  // Custom Window Dragging (for cursor support on Windows)
+  startDrag: (offset) => ipcRenderer.send('window-drag-start', offset),
+  moveDrag: () => ipcRenderer.send('window-drag-move'),
+  endDrag: () => ipcRenderer.send('window-drag-end')
 });
