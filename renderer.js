@@ -122,19 +122,13 @@ function renderHotkeyHint() {
     elements.hotkeyHint.innerHTML = `
       <span class="hotkey-hint-inner">
         <span class="hotkey-hint-group">
-          <span class="hotkey-hint-mark" title="Quick toggle">✦</span>
-          <kbd>Ctrl</kbd><kbd>C</kbd>
+          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>E</kbd>
           <span class="hotkey-hint-cap">Assistant</span>
         </span>
         <span class="hotkey-hint-gap">·</span>
         <span class="hotkey-hint-group">
           <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>Space</kbd>
           <span class="hotkey-hint-cap">Record</span>
-        </span>
-        <span class="hotkey-hint-gap">·</span>
-        <span class="hotkey-hint-group">
-          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>E</kbd>
-          <span class="hotkey-hint-cap">Capture</span>
         </span>
       </span>`;
   }

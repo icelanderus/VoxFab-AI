@@ -63,8 +63,8 @@ const store = new ConfigStore({
   bgOpacity: 0.85,
   bgBlur: 12,
   language: 'en',
-  /** Win/Linux: open assistant when clipboard changes after copy. macOS: off (⌘C left free); use ⌘⇧E. */
-  autoGrammarClipboard: true,
+  /** Win/Linux: open assistant when clipboard changes after copy. Default: false (user wants only explicit hotkeys). */
+  autoGrammarClipboard: false,
   /** Allow dragging edges to resize the floating assistant window. */
   grammarFloatResizable: true
 });
