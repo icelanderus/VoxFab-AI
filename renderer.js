@@ -123,7 +123,7 @@ function renderHotkeyHint() {
     elements.hotkeyHint.innerHTML = `
       <span class="hotkey-hint-inner">
         <span class="hotkey-hint-group">
-          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>E</kbd>
+          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>C</kbd> / <kbd>E</kbd>
           <span class="hotkey-hint-cap">Assistant</span>
         </span>
         <span class="hotkey-hint-gap">·</span>

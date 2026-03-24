@@ -334,6 +334,9 @@ function registerGlobalShortcut() {
     if (!globalShortcut.register('Ctrl+Shift+E', onGrammarHotkey)) {
       console.error('Failed to register Ctrl+Shift+E (grammar)');
     }
+    if (!globalShortcut.register('Ctrl+Shift+C', onGrammarHotkey)) {
+      console.error('Failed to register Ctrl+Shift+C (grammar)');
+    }
   }
 }
 
