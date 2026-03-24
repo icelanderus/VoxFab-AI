@@ -82,7 +82,6 @@ const elements = {
   // AI Actions
   aiToolbar: document.getElementById('ai-actions-toolbar'),
   aiFixBtn: document.getElementById('ai-fix-btn'),
-  aiRefineBtn: document.getElementById('ai-refine-btn'),
   aiFormalBtn: document.getElementById('ai-formal-btn'),
   aiSummaryBtn: document.getElementById('ai-summary-btn'),
   aiReplyBtn: document.getElementById('ai-reply-btn'),
@@ -318,7 +317,6 @@ function setupEventListeners() {
 
   // AI Actions
   elements.aiFixBtn.addEventListener('click', () => performAIAction('fix'));
-  elements.aiRefineBtn.addEventListener('click', () => performAIAction('refining'));
   elements.aiFormalBtn.addEventListener('click', () => performAIAction('professional'));
   elements.aiSummaryBtn.addEventListener('click', () => performAIAction('summary'));
   elements.aiReplyBtn.addEventListener('click', () => performAIAction('reply'));
@@ -984,7 +982,6 @@ function updateAiToolbarVisibility() {
 
   // Toggle other AI buttons based on text presence
   elements.aiFixBtn.classList.toggle('hidden', !hasText);
-  elements.aiRefineBtn.classList.toggle('hidden', !hasText);
   elements.aiFormalBtn.classList.toggle('hidden', !hasText);
   if (elements.aiSummaryBtn) elements.aiSummaryBtn.classList.toggle('hidden', !hasText);
   if (elements.aiReplyBtn) elements.aiReplyBtn.classList.toggle('hidden', !hasText);
@@ -1020,7 +1017,6 @@ async function performAIAction(actionType) {
   
   const prompts = {
     fix: "Fix any spelling, grammar, and punctuation errors in the following text. Preserve the original meaning and style exactly. Return ONLY the corrected text.",
-    refining: "Rephrase the following text to be clearer, more concise, and have a better flow. Preserve the original intent. Return ONLY the refined text.",
     professional: "Rewrite the following text in a formal, professional business tone suitable for an email or report. Return ONLY the rewritten text.",
     summary: "Create a very concise summary of the following text using bullet points if appropriate. Return ONLY the summary.",
     reply: "Draft a helpful, polite, and concise reply to the following message. Adapt to the tone of the message. Return ONLY the reply text.",

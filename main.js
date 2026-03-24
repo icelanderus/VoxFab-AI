@@ -924,8 +924,6 @@ ipcMain.handle('type-text', async (event, text) => {
 
 const GRAMMAR_AI_PROMPTS = {
   fix: 'Fix any spelling, grammar, and punctuation errors in the following text. Preserve the original meaning and style exactly. Return ONLY the corrected text.',
-  refining:
-    'Rephrase the following text to be clearer, more concise, and have a better flow. Preserve the original intent. Return ONLY the refined text.',
   professional:
     'Rewrite the following text in a formal, professional business tone suitable for an email or report. Return ONLY the rewritten text.',
   summary:

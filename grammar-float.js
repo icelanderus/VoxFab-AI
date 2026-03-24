@@ -13,12 +13,6 @@ const ACTION_DEFS = [
     svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2"/><path d="m19 3-1 2"/><path d="m5 21 1-2"/><path d="m19 21-1-2"/></svg>'
   },
   {
-    type: 'refining',
-    id: 'ai-refine-btn',
-    title: 'Refine',
-    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
-  },
-  {
     type: 'professional',
     id: 'ai-formal-btn',
     title: 'Professional',
