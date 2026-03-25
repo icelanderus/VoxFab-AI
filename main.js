@@ -657,8 +657,8 @@ function ensureGrammarFloatWindow() {
   }
   const canResize = store.get('grammarFloatResizable') !== false;
   grammarFloatWindow = new BrowserWindow({
-    width: 340,
-    height: 320,
+    width: 150,
+    height: 80,
     show: false,
     frame: false,
     transparent: true,
