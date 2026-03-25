@@ -863,18 +863,11 @@ kbd {
   border-bottom: 1px solid var(--glass-border);
 }
 
-/* About slide-over: readable title (settings use uppercase .settings-title). */
-.about-panel > .settings-header > .settings-title {
-  text-transform: none;
-  letter-spacing: -0.02em;
-  font-weight: 650;
-}
-
 .about-hero-title {
-  font-size: 22px;
+  font-size: 24px;
   text-transform: none;
-  letter-spacing: -0.45px;
-  margin-bottom: 6px;
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
   line-height: 1.25;
 }
 
