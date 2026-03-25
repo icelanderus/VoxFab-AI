@@ -816,8 +816,39 @@ kbd {
   pointer-events: none;
 }
 
-.settings-panel.visible {
+.settings-panel.visible,
+.about-panel.visible {
   pointer-events: all;
+}
+
+.about-panel {
+  position: absolute;
+  inset: 0;
+  top: 41px; /* below title bar */
+  background: var(--bg-primary);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform var(--transition-slow);
+}
+
+.about-panel.visible {
+  transform: translateX(0);
+}
+
+.about-panel.hidden {
+  display: flex !important;
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+.main-content {
+  transition: transform var(--transition-slow);
+}
+
+.main-content.shift-right {
+  transform: translateX(330px);
 }
 
 .settings-header {
@@ -1017,6 +1048,40 @@ kbd {
 
 .fade-in {
   animation: fadeIn var(--transition-slow) forwards;
+}
+
+.shine-btn {
+  position: relative;
+  overflow: hidden;
+  animation: shine-pulse 2s ease-in-out infinite;
+}
+
+@keyframes shine-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(0, 212, 255, 0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+}
+
+.shine-btn::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 45%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 55%
+  );
+  transform: rotate(45deg);
+  animation: shine-sweep 1.5s infinite;
+}
+
+@keyframes shine-sweep {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) rotate(45deg); }
 }
 
 /* Toast notification */

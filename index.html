@@ -30,7 +30,15 @@
       </div>
       <div class="title-bar-right">
         <!-- settings toggle removed from here and moved to engine badge -->
+        <button class="title-btn" id="about-btn" title="About VibeType AI">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+        </button>
         <button class="title-btn minimize-btn" id="minimize-btn" title="Minimize to Tray">
+
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
@@ -385,10 +393,67 @@
           <div class="setting-info" id="language-info">This option is disabled when Auto-Detect Language is on.</div>
         </div>
 
-        <button class="save-btn" id="save-settings-btn">Save Settings</button>
+        <button class="save-btn" id="save-settings">Save Settings</button>
       </div>
     </div>
-  </div>
+
+    <!-- About Panel (slides in from left) -->
+    <div class="about-panel hidden" id="about-panel">
+      <div class="settings-header">
+        <div style="width: 28px;"></div>
+        <span class="settings-title">About VibeType AI</span>
+        <button class="title-btn" id="about-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12,5 19,12 12,19"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="settings-body">
+        <div class="setting-group">
+          <div class="settings-title" style="font-size: 24px; text-transform: none; letter-spacing: -0.5px; margin-bottom: 4px;">Speak into Existence</div>
+          <div class="setting-description" style="font-size: 13px; color: var(--text-primary);">
+            VibeType AI is designed to save you time. Stop typing like a grandpa and start speaking naturally. It handles the transcription and types it directly into any app.
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">🚀 Workflow Redefined</label>
+          <div class="setting-description">
+            Press the global hotkey to start recording. It automatically types the result into your active application.
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">✨ Writing Assistant</label>
+          <div class="setting-description">
+            Press <b>Ctrl + Shift + E</b> to open the Assistant. Use it to fix grammar, change tone, or summarize highlighted text.
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">Pro Tips ⚒️</label>
+          <div class="setting-description">
+            Use local Whisper for privacy or OpenAI for maximum accuracy. Control the Assistant with global shortcuts.
+          </div>
+        </div>
+
+        <div class="setting-group" style="margin-top: auto; opacity: 0.6; padding-top: 20px; border-top: 1px solid var(--glass-border);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span style="font-size: 11px; font-weight: 600;">Privacy First</span>
+          </div>
+          <div class="setting-description" style="font-size: 10px;">
+            Local transcription available via Whisper. Your data stays on your machine.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- end app-container -->
 
   <script src="renderer.js"></script>
 </body>

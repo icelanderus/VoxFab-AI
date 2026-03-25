@@ -71,6 +71,9 @@ const store = new ConfigStore({
 
 let mainWindow = null;
 let grammarFloatWindow = null;
+let aboutWindow = null; // Keeping the variable for now as it might be used elsewhere, but window creation is removed. 
+// Actually, let me check if it's used.
+
 let tray = null;
 let isRecording = false;
 

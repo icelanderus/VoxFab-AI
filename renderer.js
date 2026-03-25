@@ -77,7 +77,10 @@ const elements = {
   translateToggleSettings: document.getElementById('translate-toggle-settings'),
   languageGroup: document.getElementById('language-group'),
   languageSelect: document.getElementById('language-select'),
-  saveSettingsBtn: document.getElementById('save-settings-btn'),
+  saveSettingsBtn: document.getElementById('save-settings'),
+  aboutBtn: document.getElementById('about-btn'),
+  aboutPanel: document.getElementById('about-panel'),
+  aboutBack: document.getElementById('about-back'),
   
   // AI Actions
   aiToolbar: document.getElementById('ai-actions-toolbar'),
@@ -269,10 +272,18 @@ function setupEventListeners() {
   // Window controls
   if (elements.minimizeBtn) elements.minimizeBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
   if (elements.closeBtn) elements.closeBtn.addEventListener('click', () => window.electronAPI.closeWindow());
+  const aboutBtn = document.getElementById('about-btn');
+  if (aboutBtn) {
+    aboutBtn.addEventListener('click', () => {
+      window.ipcRenderer.send('open-about');
+    });
+  }
 
   // Settings
   if (elements.settingsToggle) elements.settingsToggle.addEventListener('click', toggleSettings);
   if (elements.settingsBack) elements.settingsBack.addEventListener('click', toggleSettings);
+  if (elements.aboutBtn) elements.aboutBtn.addEventListener('click', toggleAbout);
+  if (elements.aboutBack) elements.aboutBack.addEventListener('click', toggleAbout);
   if (elements.saveSettingsBtn) elements.saveSettingsBtn.addEventListener('click', saveSettings);
   
   if (elements.assistantEnabledToggle) {
@@ -1106,6 +1117,41 @@ function toggleCustomPrompt() {
   }
 }
 
+function toggleAbout() {
+  const isVisible = elements.aboutPanel.classList.toggle('visible');
+  elements.aboutPanel.classList.toggle('hidden', !isVisible);
+  
+  // Shift main content
+  if (elements.mainContent) {
+    elements.mainContent.classList.toggle('shift-right', isVisible);
+  }
+}
+
+/** Startup sequence: Auto-show about -> wait -> hide -> shine button */
+function initAboutDiscovery() {
+  // Only on first run? For now, every run as requested "когда аппликация открывается первый раз"
+  // If we want actual first run, we'd check a setting.
+  setTimeout(() => {
+    // Show about
+    toggleAbout();
+    
+    setTimeout(() => {
+      // Hide about
+      toggleAbout();
+      
+      // Flash the settings/about button area
+      setTimeout(() => {
+        if (elements.aboutBtn) {
+          elements.aboutBtn.classList.add('shine-btn');
+          setTimeout(() => {
+            elements.aboutBtn.classList.remove('shine-btn');
+          }, 4000);
+        }
+      }, 500);
+    }, 5000);
+  }, 1500);
+}
+
 // ============================================
 // Action Buttons
 // ============================================
@@ -1209,6 +1255,7 @@ if (window.electronAPI.platform === 'darwin') {
 }
 init();
 setupDraggableHeader();
+initAboutDiscovery();
 
 function setupDraggableHeader() {
   const header = document.getElementById('title-bar');
