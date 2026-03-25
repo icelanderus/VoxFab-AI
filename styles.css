@@ -1188,28 +1188,58 @@ html.about-overlay-open .mic-ring::before {
   100% { transform: translateX(100%) rotate(45deg); }
 }
 
-/* About button hint on launch: same look as .shine-btn but exactly 2 cycles then stop */
-.shine-btn-twice {
-  position: relative;
-  overflow: hidden;
-  animation: shine-pulse 2s ease-in-out 2;
+/*
+ * About button — one cyan/purple glow pulse + one sweep on launch.
+ * ::after uses forwards + opacity 0 so the gradient stripe never snaps to center (static bar bug).
+ */
+@keyframes shine-pulse-once {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 212, 255, 0);
+  }
+  45% {
+    box-shadow:
+      0 0 24px 6px rgba(0, 212, 255, 0.55),
+      0 0 12px 2px rgba(139, 92, 246, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 212, 255, 0);
+  }
 }
 
-.shine-btn-twice::after {
+.shine-btn-once {
+  position: relative;
+  overflow: hidden;
+  animation: shine-pulse-once 1.2s ease-in-out 1 forwards;
+}
+
+@keyframes shine-sweep-once {
+  0% {
+    transform: translateX(-115%) rotate(45deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(115%) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+.shine-btn-once::after {
   content: '';
   position: absolute;
   top: -50%;
   left: -50%;
   width: 200%;
   height: 200%;
+  pointer-events: none;
   background: linear-gradient(
     45deg,
-    transparent 45%,
-    rgba(255, 255, 255, 0.4) 50%,
-    transparent 55%
+    transparent 44%,
+    rgba(255, 255, 255, 0.38) 50%,
+    transparent 56%
   );
-  transform: rotate(45deg);
-  animation: shine-sweep 1.5s ease-in-out 2;
+  transform: translateX(-115%) rotate(45deg);
+  opacity: 0;
+  animation: shine-sweep-once 1.15s ease-out 1 forwards;
 }
 
 /* Toast notification */

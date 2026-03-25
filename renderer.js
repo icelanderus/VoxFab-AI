@@ -1140,16 +1140,16 @@ function toggleAbout() {
   syncAuxPanelMotionClass();
 }
 
-/** Startup: draw attention to About — pulse + sweep run exactly twice (no auto-open panel). */
+/** Startup: one shine sweep on About (no auto-open panel). */
 function initAboutDiscovery() {
-  const SHINE_TOTAL_MS = 4200;
+  const SHINE_MS = 1350;
   setTimeout(() => {
     const btn = elements.aboutBtn;
     if (!btn) return;
-    btn.classList.remove('shine-btn-twice');
+    btn.classList.remove('shine-btn-once');
     void btn.offsetWidth;
-    btn.classList.add('shine-btn-twice');
-    setTimeout(() => btn.classList.remove('shine-btn-twice'), SHINE_TOTAL_MS);
+    btn.classList.add('shine-btn-once');
+    setTimeout(() => btn.classList.remove('shine-btn-once'), SHINE_MS);
   }, 1500);
 }
 
