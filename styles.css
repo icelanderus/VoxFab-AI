@@ -180,8 +180,12 @@ html.platform-darwin .title-bar {
 }
 
 .main-content.slide-out {
-  transform: translateX(-100%);
+  transform: translate3d(-100%, 0, 0);
   opacity: 0;
+}
+
+.main-content.shift-right {
+  transform: translate3d(330px, 0, 0);
 }
 
 /* ========================================
@@ -806,17 +810,18 @@ kbd {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  transform: translateX(100%);
+  transform: translate3d(100%, 0, 0);
   transition: transform var(--transition-slow);
+  backface-visibility: hidden;
 }
 
 .settings-panel.visible {
-  transform: translateX(0);
+  transform: translate3d(0, 0, 0);
 }
 
 .settings-panel.hidden {
   display: flex !important;
-  transform: translateX(100%);
+  transform: translate3d(100%, 0, 0);
   pointer-events: none;
 }
 
@@ -833,26 +838,19 @@ kbd {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  transform: translateX(-100%);
+  transform: translate3d(-100%, 0, 0);
   transition: transform var(--transition-slow);
+  backface-visibility: hidden;
 }
 
 .about-panel.visible {
-  transform: translateX(0);
+  transform: translate3d(0, 0, 0);
 }
 
 .about-panel.hidden {
   display: flex !important;
-  transform: translateX(-100%);
+  transform: translate3d(-100%, 0, 0);
   pointer-events: none;
-}
-
-.main-content {
-  transition: transform var(--transition-slow);
-}
-
-.main-content.shift-right {
-  transform: translateX(330px);
 }
 
 .settings-header {
@@ -863,12 +861,15 @@ kbd {
   border-bottom: 1px solid var(--glass-border);
 }
 
+/* No background-clip:text here — it repaints every scroll frame inside .settings-body. */
 .about-hero-title {
   font-size: 24px;
+  font-weight: 700;
   text-transform: none;
   letter-spacing: -0.5px;
   margin-bottom: 4px;
   line-height: 1.25;
+  color: var(--accent-cyan);
 }
 
 .about-hero-lead {
@@ -889,36 +890,97 @@ kbd {
 
 .settings-body {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.settings-scroll {
+  flex: 1;
+  min-height: 0;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-.settings-body::-webkit-scrollbar {
+.settings-scroll::-webkit-scrollbar {
   width: 8px;
 }
 
-.settings-body::-webkit-scrollbar-track {
+.settings-scroll::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
   border-radius: var(--radius-sm);
   margin: 4px 0;
 }
 
-.settings-body::-webkit-scrollbar-thumb {
+.settings-scroll::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: var(--radius-sm);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-.settings-body::-webkit-scrollbar-thumb:hover {
+.settings-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
   border: 2px solid transparent;
   background-clip: padding-box;
+}
+
+/* Settings only: main was fully painted under the panel — stop painting for scroll perf. */
+html.settings-overlay-open .main-content {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+html.settings-overlay-open .app-container {
+  box-shadow: none;
+}
+
+html.settings-overlay-open .main-content,
+html.settings-overlay-open .main-content *,
+html.about-overlay-open .main-content,
+html.about-overlay-open .main-content * {
+  animation-play-state: paused !important;
+}
+
+html.settings-overlay-open .mic-ring::before,
+html.about-overlay-open .mic-ring::before {
+  animation: none !important;
+  opacity: 0 !important;
+  filter: none !important;
+}
+
+.settings-body a.about-link,
+.settings-scroll a.about-link {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.settings-body a.about-link:hover,
+.settings-scroll a.about-link:hover {
+  color: var(--accent-purple);
+}
+
+.about-developer {
+  padding-top: 4px;
+}
+
+.about-developer .setting-description {
+  color: var(--text-secondary);
 }
 
 .setting-group {
@@ -1124,6 +1186,30 @@ kbd {
 @keyframes shine-sweep {
   0% { transform: translateX(-100%) rotate(45deg); }
   100% { transform: translateX(100%) rotate(45deg); }
+}
+
+/* About button hint on launch: same look as .shine-btn but exactly 2 cycles then stop */
+.shine-btn-twice {
+  position: relative;
+  overflow: hidden;
+  animation: shine-pulse 2s ease-in-out 2;
+}
+
+.shine-btn-twice::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 45%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 55%
+  );
+  transform: rotate(45deg);
+  animation: shine-sweep 1.5s ease-in-out 2;
 }
 
 /* Toast notification */

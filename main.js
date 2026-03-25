@@ -10,7 +10,8 @@ const {
   clipboard,
   systemPreferences,
   dialog,
-  net
+  net,
+  shell
 } = require('electron');
 const { keyboard, Key, sleep } = require('@nut-tree-fork/nut-js');
 const path = require('path');
@@ -205,6 +206,12 @@ function createWindow() {
   }
 
   mainWindow.loadFile('index.html');
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
   mainWindow.setVisibleOnAllWorkspaces(true);
 
   // Save window state on move/resize

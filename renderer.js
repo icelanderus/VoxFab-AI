@@ -874,6 +874,17 @@ function updateLanguageState() {
   elements.languageSelect.disabled = autoDetect;
 }
 
+/**
+ * Settings: hide main + drop shadow (scroll perf). About: keep main visible with shift-right (old UX).
+ * Both: pause heavy main UI animations while overlay is open.
+ */
+function syncAuxPanelMotionClass() {
+  const settingsOpen = elements.settingsPanel && elements.settingsPanel.classList.contains('visible');
+  const aboutOpen = elements.aboutPanel && elements.aboutPanel.classList.contains('visible');
+  document.documentElement.classList.toggle('settings-overlay-open', !!settingsOpen);
+  document.documentElement.classList.toggle('about-overlay-open', !!aboutOpen);
+}
+
 function toggleSettings() {
   const isHidden = !elements.settingsPanel.classList.contains('visible');
   if (isHidden) {
@@ -882,11 +893,14 @@ function toggleSettings() {
     elements.settingsPanel.offsetHeight;
     elements.settingsPanel.classList.add('visible');
     elements.mainContent.classList.add('slide-out');
+    syncAuxPanelMotionClass();
   } else {
     elements.settingsPanel.classList.remove('visible');
     elements.mainContent.classList.remove('slide-out');
+    syncAuxPanelMotionClass();
     setTimeout(() => {
       elements.settingsPanel.classList.add('hidden');
+      syncAuxPanelMotionClass();
     }, 400);
   }
 }
@@ -1120,35 +1134,22 @@ function toggleCustomPrompt() {
 function toggleAbout() {
   const isVisible = elements.aboutPanel.classList.toggle('visible');
   elements.aboutPanel.classList.toggle('hidden', !isVisible);
-  
-  // Shift main content
   if (elements.mainContent) {
     elements.mainContent.classList.toggle('shift-right', isVisible);
   }
+  syncAuxPanelMotionClass();
 }
 
-/** Startup sequence: Auto-show about -> wait -> hide -> shine button */
+/** Startup: draw attention to About — pulse + sweep run exactly twice (no auto-open panel). */
 function initAboutDiscovery() {
-  // Only on first run? For now, every run as requested "когда аппликация открывается первый раз"
-  // If we want actual first run, we'd check a setting.
+  const SHINE_TOTAL_MS = 4200;
   setTimeout(() => {
-    // Show about
-    toggleAbout();
-    
-    setTimeout(() => {
-      // Hide about
-      toggleAbout();
-      
-      // Flash the settings/about button area
-      setTimeout(() => {
-        if (elements.aboutBtn) {
-          elements.aboutBtn.classList.add('shine-btn');
-          setTimeout(() => {
-            elements.aboutBtn.classList.remove('shine-btn');
-          }, 4000);
-        }
-      }, 500);
-    }, 5000);
+    const btn = elements.aboutBtn;
+    if (!btn) return;
+    btn.classList.remove('shine-btn-twice');
+    void btn.offsetWidth;
+    btn.classList.add('shine-btn-twice');
+    setTimeout(() => btn.classList.remove('shine-btn-twice'), SHINE_TOTAL_MS);
   }, 1500);
 }
 
