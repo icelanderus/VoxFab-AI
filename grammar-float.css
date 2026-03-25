@@ -44,6 +44,7 @@ body.grammar-float-body.resizable-active {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  position: relative;
 }
 
 /* For manual resize handles to work on a transparent frameless window, 
@@ -65,6 +66,16 @@ body.grammar-float-body.resizable-active {
   flex-shrink: 0;
   box-sizing: border-box;
   cursor: grab;
+}
+
+html.platform-darwin .float-chrome-row.float-chrome-header,
+html.platform-darwin .float-header-mid {
+  cursor: default;
+}
+
+/* macOS: native drag on header; FAB / close stay no-drag. */
+html.platform-darwin .float-chrome-row.float-chrome-header {
+  -webkit-app-region: drag;
 }
 
 .fab-dot-wrap {
@@ -279,4 +290,46 @@ body.grammar-float-body.resizable-active {
   border-color: var(--glass-border-hover);
   background: transparent;
   color: var(--text-secondary);
+}
+
+/* no-drag edge targets so frameless float stays resizable with a native-drag header (macOS). */
+.float-resize-gutter {
+  position: absolute;
+  z-index: 60;
+  -webkit-app-region: no-drag;
+  background: transparent;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.float-resize-e {
+  top: 42px;
+  right: 0;
+  bottom: 10px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.float-resize-w {
+  top: 42px;
+  left: 0;
+  bottom: 10px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.float-resize-se {
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+}
+
+.float-resize-sw {
+  bottom: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
 }

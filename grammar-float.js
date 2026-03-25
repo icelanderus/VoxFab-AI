@@ -300,11 +300,19 @@ grammarAPI.onInit(async (payload) => {
   fitFloatToContent();
 });
 
+if (window.grammarAPI && window.grammarAPI.platform === 'darwin') {
+  document.documentElement.classList.add('platform-darwin');
+}
+
 setupDraggableHeader();
 
 function setupDraggableHeader() {
   const header = document.querySelector('.float-chrome-header');
   if (!header) return;
+
+  if (window.grammarAPI.platform === 'darwin') {
+    return;
+  }
 
   let isDragging = false;
 

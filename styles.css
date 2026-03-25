@@ -104,6 +104,12 @@ html {
   flex-shrink: 0;
 }
 
+/* macOS: native window drag (smooth); no IPC moveDrag. Default cursor per user preference. */
+html.platform-darwin .title-bar {
+  cursor: default;
+  -webkit-app-region: drag;
+}
+
 .title-bar-left {
   display: flex;
   align-items: center;

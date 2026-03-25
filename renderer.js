@@ -1204,12 +1204,20 @@ function showToast(message, type = 'success', options = {}) {
 // ============================================
 // Start
 // ============================================
+if (window.electronAPI.platform === 'darwin') {
+  document.documentElement.classList.add('platform-darwin');
+}
 init();
 setupDraggableHeader();
 
 function setupDraggableHeader() {
   const header = document.getElementById('title-bar');
   if (!header) return;
+
+  // macOS: IPC + setPosition every mousemove stutters; use OS-native window drag instead.
+  if (window.electronAPI.platform === 'darwin') {
+    return;
+  }
 
   let isDragging = false;
 

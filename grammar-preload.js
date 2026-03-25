@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('grammarAPI', {
+  platform: process.platform,
   onInit: (callback) => {
     ipcRenderer.on('grammar-init', (_e, payload) => callback(payload));
   },
