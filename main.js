@@ -71,6 +71,8 @@ const store = new ConfigStore({
 
 let mainWindow = null;
 let grammarFloatWindow = null;
+/** Tiny always-on-top spinner near cursor while assistant payload loads (API scan). */
+let grammarLoaderWindow = null;
 let tray = null;
 let isRecording = false;
 
@@ -717,6 +719,94 @@ function positionGrammarFloatNear(point, win = grammarFloatWindow) {
   win.setPosition(px, py);
 }
 
+const GRAMMAR_LOADER_SIZE = 44;
+
+const GRAMMAR_LOADER_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;width:100%;height:100%;background:transparent!important;overflow:hidden;
+display:flex;align-items:center;justify-content:center;-webkit-app-region:no-drag}
+.sp{width:28px;height:28px;border-radius:50%;flex-shrink:0;
+background:conic-gradient(from 0deg,#00d4ff,#22d3ee,#6366f1,#8b5cf6,#a78bfa,#00d4ff);
+-webkit-mask:radial-gradient(circle closest-side,transparent 9px,#000 10px,#000 13px,transparent 14px);
+mask:radial-gradient(circle closest-side,transparent 9px,#000 10px,#000 13px,transparent 14px);
+animation:grspin 0.75s linear infinite}
+@keyframes grspin{to{transform:rotate(360deg)}}
+</style></head><body><div class="sp" aria-hidden="true"></div></body></html>`;
+
+function hideGrammarLoader() {
+  if (grammarLoaderWindow && !grammarLoaderWindow.isDestroyed()) {
+    grammarLoaderWindow.hide();
+  }
+}
+
+function showGrammarLoaderAt(screenPoint) {
+  const display = screen.getDisplayNearestPoint(screenPoint);
+  const wa = display.workArea;
+  let x = Math.round(screenPoint.x - GRAMMAR_LOADER_SIZE / 2);
+  let y = Math.round(screenPoint.y - GRAMMAR_LOADER_SIZE / 2);
+  x = Math.max(wa.x, Math.min(x, wa.x + wa.width - GRAMMAR_LOADER_SIZE));
+  y = Math.max(wa.y, Math.min(y, wa.y + wa.height - GRAMMAR_LOADER_SIZE));
+
+  if (!grammarLoaderWindow || grammarLoaderWindow.isDestroyed()) {
+    grammarLoaderWindow = new BrowserWindow({
+      width: GRAMMAR_LOADER_SIZE,
+      height: GRAMMAR_LOADER_SIZE,
+      x,
+      y,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      hasShadow: false,
+      focusable: false,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: false
+      }
+    });
+    grammarLoaderWindow.setIgnoreMouseEvents(true);
+    const dataUrl =
+      'data:text/html;charset=utf-8,' + encodeURIComponent(GRAMMAR_LOADER_HTML);
+    grammarLoaderWindow.loadURL(dataUrl);
+  } else {
+    grammarLoaderWindow.setBounds({
+      x,
+      y,
+      width: GRAMMAR_LOADER_SIZE,
+      height: GRAMMAR_LOADER_SIZE
+    });
+  }
+
+  const win = grammarLoaderWindow;
+  const showLoader = () => {
+    if (!win.isDestroyed()) {
+      if (process.platform === 'win32') {
+        win.setAlwaysOnTop(true, 'screen-saver');
+      } else {
+        win.setAlwaysOnTop(true, 'floating');
+      }
+      if (typeof win.showInactive === 'function') {
+        win.showInactive();
+      } else {
+        win.show();
+      }
+    }
+  };
+
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', showLoader);
+  } else {
+    showLoader();
+  }
+}
+
 async function pushGrammarFloatPayload(text, point, { focusWindow }) {
   const t = String(text || '').trim();
   if (!t) return false;
@@ -772,22 +862,27 @@ function startGrammarClipboardWatcher() {
 async function openGrammarFloatFromShortcut() {
   snapshotFrontmostPasteTarget();
   const point = screen.getCursorScreenPoint();
-  const { text, err } = await captureSelectionTextForFloat();
-  if (!text || !text.trim()) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('app-toast', {
-        message:
-          err === 'no-target'
-            ? 'Click the app that has your selection, then try the shortcut again.'
-            : process.platform === 'darwin'
-              ? 'Highlight text in the other app, then press ⌘⇧E (or Ctrl⇧E).'
-              : 'Highlight text in the other app, then copy (Ctrl+C) or press Ctrl+Shift+E.',
-        type: 'warning'
-      });
+  showGrammarLoaderAt(point);
+  try {
+    const { text, err } = await captureSelectionTextForFloat();
+    if (!text || !text.trim()) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app-toast', {
+          message:
+            err === 'no-target'
+              ? 'Click the app that has your selection, then try the shortcut again.'
+              : process.platform === 'darwin'
+                ? 'Highlight text in the other app, then press ⌘⇧E (or Ctrl⇧E).'
+                : 'Highlight text in the other app, then copy (Ctrl+C) or press Ctrl+Shift+E.',
+          type: 'warning'
+        });
+      }
+      return;
     }
-    return;
+    await pushGrammarFloatPayload(text, point, { focusWindow: true });
+  } finally {
+    hideGrammarLoader();
   }
-  await pushGrammarFloatPayload(text, point, { focusWindow: true });
 }
 
 function classifyMacPasteError(stderr) {
@@ -1101,6 +1196,10 @@ app.whenReady().then(() => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   stopWindowMonitor();
+  if (grammarLoaderWindow && !grammarLoaderWindow.isDestroyed()) {
+    grammarLoaderWindow.destroy();
+    grammarLoaderWindow = null;
+  }
 });
 
 app.on('activate', () => {
