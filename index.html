@@ -173,6 +173,12 @@
         <div class="transcription-header">
           <span class="transcription-label">Transcription</span>
           <div class="transcription-actions">
+            <button class="action-btn hidden" id="ai-undo-btn" title="Undo AI action">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 2v6h6"/>
+                <path d="M3 13a9 9 0 1 0 3-7.7L3 8"/>
+              </svg>
+            </button>
             <button class="action-btn" id="copy-btn" title="Copy to clipboard">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -221,12 +227,6 @@
             <button type="button" class="action-btn ai-btn" id="writing-assistant-btn" title="Writing assistant" aria-label="Writing assistant">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-              </svg>
-            </button>
-            <button class="action-btn ai-btn hidden" id="ai-undo-btn" title="↺ Undo AI Action">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 2v6h6"/>
-                <path d="M3 13a9 9 0 1 0 3-7.7L3 8"/>
               </svg>
             </button>
             <button class="action-btn ai-btn" id="ai-fix-btn" title="✨ Fix & Polish">

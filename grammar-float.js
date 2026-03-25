@@ -2,10 +2,21 @@
 
 let selectedText = '';
 let lastResult = '';
+/** Flip-flop partner for undo (same idea as main window `state.previousText`). */
+let resultUndoPartner = '';
 let autoType = true;
+
+const UNDO_BTN_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>';
 
 /** Same actions and SVG icons as main window `index.html` AI toolbar (no emoji labels). */
 const ACTION_DEFS = [
+  {
+    type: 'undo',
+    id: 'grammar-undo-btn',
+    title: 'Undo last AI result',
+    svg: UNDO_BTN_SVG
+  },
   {
     type: 'fix',
     id: 'ai-fix-btn',
@@ -145,6 +156,15 @@ function fitFloatToContent(widthLimit = 350) {
 
 /* No global ResizeObserver for the window to avoid fighting manual resize. */
 
+function grammarUndoAvailable() {
+  return !!(lastResult || resultUndoPartner);
+}
+
+function updateGrammarUndoButton() {
+  const u = document.getElementById('grammar-undo-btn');
+  if (u) u.classList.toggle('hidden', !grammarUndoAvailable());
+}
+
 function buildActionButtons() {
   actionsEl.innerHTML = '';
   for (const a of ACTION_DEFS) {
@@ -165,9 +185,33 @@ function buildActionButtons() {
   customBtn.innerHTML = CUSTOM_BTN_SVG;
   customBtn.addEventListener('click', toggleGrammarCustomPrompt);
   actionsEl.appendChild(customBtn);
+  updateGrammarUndoButton();
+}
+
+function undoFloatAiResult() {
+  if (!grammarUndoAvailable()) return;
+  const a = lastResult;
+  const b = resultUndoPartner;
+  lastResult = b;
+  resultUndoPartner = a;
+  if (lastResult) {
+    resultEl.textContent = lastResult;
+    resultEl.classList.add('visible');
+    applyRow.style.display = 'flex';
+  } else {
+    resultEl.textContent = '';
+    resultEl.classList.remove('visible');
+    applyRow.style.display = 'none';
+  }
+  updateGrammarUndoButton();
+  fitFloatToContent(350);
 }
 
 async function runAction(type) {
+  if (type === 'undo') {
+    undoFloatAiResult();
+    return;
+  }
   if (!selectedText.trim()) return;
   const settings = await grammarAPI.getSettings();
   if (!settings.openaiApiKey) {
@@ -182,10 +226,12 @@ async function runAction(type) {
   try {
     const res = await grammarAPI.runAiAction(type, selectedText);
     if (!res.ok) throw new Error(res.error || 'Failed');
+    resultUndoPartner = lastResult;
     lastResult = res.result || '';
     resultEl.textContent = lastResult;
     resultEl.classList.add('visible');
     applyRow.style.display = 'flex';
+    updateGrammarUndoButton();
   } catch (e) {
     setHintLine(e.message || 'AI failed');
     resultEl.classList.remove('visible');
@@ -222,8 +268,10 @@ applyPaste.addEventListener('click', async () => {
 
 dismissResult.addEventListener('click', () => {
   lastResult = '';
+  resultUndoPartner = '';
   resultEl.classList.remove('visible');
   applyRow.style.display = 'none';
+  updateGrammarUndoButton();
   fitFloatToContent(350);
 });
 
@@ -241,10 +289,12 @@ customGo.addEventListener('click', async () => {
   try {
     const res = await grammarAPI.runAiAction('custom', selectedText, instr);
     if (!res.ok) throw new Error(res.error || 'Failed');
+    resultUndoPartner = lastResult;
     lastResult = res.result || '';
     resultEl.textContent = lastResult;
     resultEl.classList.add('visible');
     applyRow.style.display = 'flex';
+    updateGrammarUndoButton();
     customIn.value = '';
     customContainer.classList.add('hidden');
   } catch (e) {
@@ -263,6 +313,7 @@ grammarAPI.onInit(async (payload) => {
   applyFloatBgOpacity(payload.bgOpacity !== undefined ? payload.bgOpacity : 0.85);
   selectedText = payload.text || '';
   lastResult = '';
+  resultUndoPartner = '';
   resultEl.textContent = '';
   resultEl.classList.remove('visible');
   applyRow.style.display = 'none';
