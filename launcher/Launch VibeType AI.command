@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Double-click this file in Finder to start Voice To Text (opens Terminal briefly).
+# Double-click this file in Finder to start VibeType AI (opens Terminal briefly).
 # Drag it to the Dock for a shortcut. Project root is one level above this folder.
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
@@ -17,7 +17,7 @@ if [ ! -d node_modules ]; then
   npm install
 fi
 
-echo "Starting Voice To Text..."
+echo "Starting VibeType AI..."
 npm start
 
 echo ""

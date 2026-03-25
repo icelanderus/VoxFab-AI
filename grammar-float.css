@@ -49,9 +49,6 @@ body.grammar-float-body.resizable-active {
 
 /* For manual resize handles to work on a transparent frameless window, 
    we let the window be larger, but the content stays hugging. */
-.grammar-float-root.resizable {
-  /* No forcing 100% here as it breaks ResizeObserver calculation. */
-}
 
 /* Title-like bar: native OS drag on the strip (like main app), not on FAB or ✕. */
 .float-chrome-row.float-chrome-header {
@@ -136,7 +133,7 @@ html.platform-darwin .float-chrome-row.float-chrome-header {
   }
 }
 
-/* One small dot — purple / brand gradient (same as Voice To Text title mic) */
+/* One small dot — purple / brand gradient (same as VibeType AI title mic) */
 .fab-dot-btn {
   width: 14px;
   height: 14px;

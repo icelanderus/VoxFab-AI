@@ -10,7 +10,7 @@
   },
   "build": {
     "appId": "com.personal.voice-to-text",
-    "productName": "Voice To Text",
+    "productName": "VibeType AI",
     "publish": null,
     "mac": {
       "target": ["dmg", "zip"],

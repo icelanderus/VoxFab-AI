@@ -267,7 +267,7 @@ function createTray() {
     }
   ]);
 
-  tray.setToolTip('Voice To Text');
+  tray.setToolTip('VibeType AI');
   tray.setContextMenu(contextMenu);
 
   tray.on('click', () => {
@@ -421,7 +421,7 @@ let lastExternalWindowHandle = null;
 let lastExternalWindowName = null;
 const { spawn, exec, spawnSync } = require('child_process');
 
-const OUR_PROCESS_NAMES = new Set(['Electron', 'Voice To Text']);
+const OUR_PROCESS_NAMES = new Set(['Electron', 'VibeType AI']);
 
 /** macOS: remember which app was frontmost when the user pressed a global shortcut (before our window may steal focus). */
 function snapshotFrontmostPasteTarget() {
@@ -913,7 +913,7 @@ ipcMain.handle('type-text', async (event, text) => {
             ok: false,
             reason: 'paste-failed',
             stderr:
-              'All paste methods failed — enable Accessibility for Voice To Text, click the target field first, then try again'
+              'All paste methods failed — enable Accessibility for VibeType AI, click the target field first, then try again'
           };
         }
       }
@@ -944,7 +944,7 @@ const GRAMMAR_AI_PROMPTS = {
 ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstruction }) => {
   const apiKey = store.get('openaiApiKey');
   if (!apiKey) {
-    return { ok: false, error: 'Set OpenAI API key in Voice To Text settings.' };
+    return { ok: false, error: 'Set OpenAI API key in VibeType AI settings.' };
   }
   const t = String(text || '').trim();
   if (!t) {
@@ -1054,7 +1054,7 @@ ipcMain.handle('is-accessibility-trusted', () => {
   return systemPreferences.isTrustedAccessibilityClient(false);
 });
 
-/** Installed .app is a different macOS identity than `npm run dev` (Electron / Terminal). Auto-paste needs Accessibility ON for Voice To Text. */
+/** Installed .app is a different macOS identity than `npm run dev` (Electron / Terminal). Auto-paste needs Accessibility ON for VibeType AI. */
 function promptPackagedMacAccessibilityIfNeeded() {
   if (process.platform !== 'darwin' || !app.isPackaged) return;
   if (systemPreferences.isTrustedAccessibilityClient(false)) return;
@@ -1064,8 +1064,8 @@ function promptPackagedMacAccessibilityIfNeeded() {
     dialog
       .showMessageBox(mainWindow, {
         type: 'warning',
-        title: 'Voice To Text',
-        message: 'Turn ON Accessibility for “Voice To Text”',
+        title: 'VibeType AI',
+        message: 'Turn ON Accessibility for “VibeType AI”',
         detail:
           'Auto-paste only works if this app is allowed in System Settings → Privacy & Security → Accessibility.\n\nWhen you run “npm run dev”, macOS lists “Electron” or “Terminal” — that is a different entry. The installed app needs its own toggle ON (blue).',
         buttons: ['Open Accessibility settings', 'OK'],
