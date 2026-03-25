@@ -569,6 +569,14 @@ function stopRecording() {
     state.audioStream = null;
   }
 
+  if (state.audioContext) {
+    try {
+      state.audioContext.close();
+    } catch (_) {}
+    state.audioContext = null;
+    state.analyser = null;
+  }
+
   state.isRecording = false;
   window.electronAPI.setRecordingState(false);
 
@@ -629,11 +637,35 @@ async function processAudio(audioBlob) {
   setStatus('processing', 'Transcribing...');
 
   try {
+    if (!audioBlob || audioBlob.size < 1200) {
+      setStatus('ready', 'No speech detected');
+      showToast('Recording too short or empty.', 'warning');
+      return;
+    }
+
+    let pcm;
+    try {
+      pcm = await audioBlobToFloat32(audioBlob);
+    } catch (_) {
+      setStatus('ready', 'No speech detected');
+      showToast('Could not read audio. Try recording a bit longer.', 'warning');
+      return;
+    }
+
+    if (isLikelySilentPcm(pcm)) {
+      setStatus('ready', 'No speech detected');
+      showToast(
+        'No clear speech detected (too quiet). Whisper invents text on silence — speak up or move closer to the mic.',
+        'warning'
+      );
+      return;
+    }
+
     let text = '';
 
     switch (state.engine) {
       case 'local-whisper':
-        text = await transcribeWithLocalWhisper(audioBlob);
+        text = await transcribeWithLocalWhisperFromPcm(pcm);
         break;
       case 'openai':
         text = await transcribeWithOpenAI(audioBlob);
@@ -642,7 +674,7 @@ async function processAudio(audioBlob) {
         text = await transcribeWithGoogleCloud(audioBlob);
         break;
       default:
-        text = await transcribeWithLocalWhisper(audioBlob);
+        text = await transcribeWithLocalWhisperFromPcm(pcm);
     }
 
     if (text && text.trim()) {
@@ -682,6 +714,11 @@ async function processAudio(audioBlob) {
 
 // --- Local Whisper (via browser-compatible transformers.js) ---
 async function transcribeWithLocalWhisper(audioBlob) {
+  const audioData = await audioBlobToFloat32(audioBlob);
+  return transcribeWithLocalWhisperFromPcm(audioData);
+}
+
+async function transcribeWithLocalWhisperFromPcm(audioData) {
   // Show progress UI
   elements.progressContainer.classList.remove('hidden');
   elements.progressText.textContent = 'Preparing audio...';
@@ -718,22 +755,18 @@ async function transcribeWithLocalWhisper(audioBlob) {
       }
     }
 
-    // Convert audio blob to float32 array
     elements.progressText.textContent = 'Transcribing...';
     elements.progressFill.style.width = '60%';
-    const audioData = await audioBlobToFloat32(audioBlob);
 
-    // Multilingual whisper supports auto-detection if language is omitted or null
     const options = {};
     if (!state.autoDetectLanguage) {
       options.language = state.settings.language || 'en';
     } else {
-      options.language = null; // Explicitly use auto-detect
+      options.language = null;
     }
-    
-    // Set task based on translation toggle
+
     options.task = state.translateToEnglish ? 'translate' : 'transcribe';
-    
+
     console.log('Local Whisper Transcription Options:', options);
     const result = await localWhisperEngine(audioData, options);
 
@@ -757,7 +790,8 @@ async function transcribeWithOpenAI(audioBlob) {
   const formData = new FormData();
   formData.append('file', audioBlob, 'recording.webm');
   formData.append('model', 'whisper-1');
-  
+  formData.append('temperature', '0');
+
   if (!state.autoDetectLanguage) {
     formData.append('language', state.settings.language || 'en');
   }
@@ -828,6 +862,31 @@ async function transcribeWithGoogleCloud(audioBlob) {
 // ============================================
 // Audio Utilities
 // ============================================
+
+/**
+ * Whisper often hallucinates (pledges, prayers, "thank you for watching") on near-silence.
+ * Reject very quiet clips before calling the API.
+ */
+function analyzePcmAmplitude(pcm) {
+  if (!pcm || pcm.length < 80) return { rms: 0, peak: 0 };
+  let sumSq = 0;
+  let peak = 0;
+  for (let i = 0; i < pcm.length; i++) {
+    const x = pcm[i];
+    const a = Math.abs(x);
+    if (a > peak) peak = a;
+    sumSq += x * x;
+  }
+  return { rms: Math.sqrt(sumSq / pcm.length), peak };
+}
+
+function isLikelySilentPcm(pcm) {
+  const { rms, peak } = analyzePcmAmplitude(pcm);
+  if (rms < 0.0028) return true;
+  if (peak < 0.011 && rms < 0.0045) return true;
+  return false;
+}
+
 async function audioBlobToFloat32(blob) {
   const audioContext = new AudioContext({ sampleRate: 16000 });
   const arrayBuffer = await blob.arrayBuffer();
