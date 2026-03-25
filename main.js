@@ -68,7 +68,9 @@ const store = new ConfigStore({
   /** Win/Linux: open assistant when clipboard changes after copy. Default: false (user wants only explicit hotkeys). */
   autoGrammarClipboard: false,
   /** Allow dragging edges to resize the floating assistant window. */
-  grammarFloatResizable: true
+  grammarFloatResizable: true,
+  /** While recording, show interim text (Web Speech + periodic engine transcribe). Off by default (saves CPU/API). */
+  livePreviewEnabled: false
 });
 
 let mainWindow = null;
@@ -375,7 +377,8 @@ ipcMain.handle('get-settings', () => {
     bgOpacity: store.get('bgOpacity'),
     bgBlur: store.get('bgBlur'),
     assistantEnabled: store.get('assistantEnabled') !== false,
-    grammarFloatResizable: store.get('grammarFloatResizable') !== false
+    grammarFloatResizable: store.get('grammarFloatResizable') !== false,
+    livePreviewEnabled: store.get('livePreviewEnabled') === true
   };
 });
 
@@ -403,6 +406,9 @@ ipcMain.handle('save-settings', (event, settings) => {
   if (settings.grammarFloatResizable !== undefined) {
     store.set('grammarFloatResizable', settings.grammarFloatResizable);
     applyGrammarFloatResizable();
+  }
+  if (settings.livePreviewEnabled !== undefined) {
+    store.set('livePreviewEnabled', settings.livePreviewEnabled);
   }
   return true;
 });

@@ -20,7 +20,21 @@ let state = {
   analyser: null,
   settings: {},
   previousText: null,
-  capturedContext: null
+  capturedContext: null,
+  /** Web Speech API — live interim/final text during record (Chromium). */
+  speechRec: null,
+  recordingBaseText: '',
+  liveFinalTranscript: '',
+  liveInterimTranscript: '',
+  /** Same engine as final pass, polled while recording (Electron-friendly vs Web Speech). */
+  liveEnginePreviewText: '',
+  livePreviewTimerId: null,
+  livePreviewInFlight: false,
+  /** Raw mic PCM for live preview (partial WebM often cannot be decoded in Electron). */
+  livePreviewPcmChunks: [],
+  livePreviewSampleRate: 48000,
+  livePreviewProcessor: null,
+  livePreviewMuteGain: null
 };
 
 const ICONS = {
@@ -102,7 +116,8 @@ const elements = {
   hotkeyHint: document.getElementById('hotkey-hint'),
   assistantEnabledToggle: document.getElementById('assistant-enabled-toggle'),
   assistantEnabledToggleSettings: document.getElementById('assistant-enabled-toggle-settings'),
-  grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle')
+  grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle'),
+  livePreviewToggleSettings: document.getElementById('live-preview-toggle-settings')
 };
 
 function renderHotkeyHint() {
@@ -226,6 +241,9 @@ async function loadSettings() {
   if (elements.grammarFloatResizableToggle) {
     elements.grammarFloatResizableToggle.checked = state.settings.grammarFloatResizable !== false;
   }
+  if (elements.livePreviewToggleSettings) {
+    elements.livePreviewToggleSettings.checked = state.settings.livePreviewEnabled === true;
+  }
   updateWritingAssistantButtonVisibility();
 
   // Appearance
@@ -299,6 +317,9 @@ function setupEventListeners() {
   }
   if (elements.grammarFloatResizableToggle) {
     elements.grammarFloatResizableToggle.addEventListener('change', saveQuickSettings);
+  }
+  if (elements.livePreviewToggleSettings) {
+    elements.livePreviewToggleSettings.addEventListener('change', saveQuickSettings);
   }
   elements.engineSelect.addEventListener('change', updateApiKeyVisibility);
   elements.autoDetectToggle.addEventListener('change', () => {
@@ -506,6 +527,329 @@ function applyAppearance(opacity) {
 }
 
 // ============================================
+// Live preview (Web Speech API — word-by-word / phrase interim)
+// ============================================
+function speechRecognitionLangFromSettings() {
+  if (state.autoDetectLanguage) return 'en-US';
+  const map = {
+    en: 'en-US',
+    es: 'es-ES',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    ru: 'ru-RU',
+    ja: 'ja-JP',
+    ko: 'ko-KR',
+    zh: 'zh-CN'
+  };
+  return map[state.settings.language] || 'en-US';
+}
+
+function updateLiveTranscriptionDisplay() {
+  if (!elements.transcriptionText) return;
+  const base = state.recordingBaseText || '';
+  const finalP = (state.liveFinalTranscript || '').trim();
+  const interP = (state.liveInterimTranscript || '').trim();
+  const webLive = [finalP, interP].filter(Boolean).join(' ').trim();
+  const engLive = (state.liveEnginePreviewText || '').trim();
+  const livePart = engLive || webLive;
+  const sep = base.trim() && livePart ? ' ' : '';
+  elements.transcriptionText.textContent = base + (livePart ? sep + livePart : '');
+}
+
+function startLiveSpeechRecognitionIfAvailable() {
+  const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Ctor) return;
+
+  state.liveFinalTranscript = '';
+  state.liveInterimTranscript = '';
+
+  try {
+    state.speechRec = new Ctor();
+    state.speechRec.continuous = true;
+    state.speechRec.interimResults = true;
+    state.speechRec.lang = speechRecognitionLangFromSettings();
+    state.speechRec.maxAlternatives = 1;
+
+    state.speechRec.onresult = (event) => {
+      let interim = '';
+      let finals = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const r = event.results[i];
+        const t = (r[0] && r[0].transcript) || '';
+        if (r.isFinal) finals += t;
+        else interim += t;
+      }
+      if (finals.trim()) {
+        const chunk = finals.trim();
+        state.liveFinalTranscript = state.liveFinalTranscript
+          ? `${state.liveFinalTranscript} ${chunk}`
+          : chunk;
+      }
+      state.liveInterimTranscript = interim.trim();
+      updateLiveTranscriptionDisplay();
+    };
+
+    state.speechRec.onerror = (e) => {
+      if (e && e.error && e.error !== 'no-speech' && e.error !== 'aborted') {
+        console.warn('SpeechRecognition:', e.error);
+      }
+    };
+
+    state.speechRec.onend = () => {
+      if (state.isRecording && state.speechRec) {
+        try {
+          state.speechRec.start();
+        } catch (err) {
+          console.warn('SpeechRecognition restart:', err);
+        }
+      }
+    };
+
+    state.speechRec.start();
+  } catch (e) {
+    console.warn('Live speech preview unavailable:', e);
+    state.speechRec = null;
+  }
+}
+
+function stopLiveSpeechRecognition() {
+  if (!state.speechRec) return;
+  const r = state.speechRec;
+  state.speechRec = null;
+  r.onend = null;
+  try {
+    r.stop();
+  } catch (_) {}
+  try {
+    r.abort();
+  } catch (_) {}
+}
+
+function getLivePreviewIntervalMs() {
+  return state.engine === 'local-whisper' ? 2800 : 4500;
+}
+
+function getLivePreviewMinBlobBytes() {
+  return state.engine === 'local-whisper' ? 7000 : 14000;
+}
+
+function mergeLivePreviewPcm() {
+  const chunks = state.livePreviewPcmChunks;
+  if (!chunks || chunks.length === 0) return null;
+  let total = 0;
+  for (let i = 0; i < chunks.length; i++) total += chunks[i].length;
+  const out = new Float32Array(total);
+  let off = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    out.set(chunks[i], off);
+    off += chunks[i].length;
+  }
+  return out;
+}
+
+/** Linear resample mono float32 (simple; good enough for live preview). */
+function resampleFloat32Mono(input, fromRate, toRate) {
+  if (fromRate === toRate || !input || input.length === 0) return input;
+  const ratio = fromRate / toRate;
+  const outLen = Math.max(1, Math.floor(input.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const srcPos = i * ratio;
+    const j = Math.floor(srcPos);
+    const f = srcPos - j;
+    const a = input[j] || 0;
+    const b = j + 1 < input.length ? input[j + 1] : a;
+    out[i] = a * (1 - f) + b * f;
+  }
+  return out;
+}
+
+function ensurePcm16kMono(float32, sampleRate) {
+  if (!float32 || float32.length === 0) return float32;
+  return resampleFloat32Mono(float32, sampleRate, 16000);
+}
+
+function float32ToWavBlob(samples, sampleRate) {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const v = new DataView(buffer);
+
+  function writeStr(offset, s) {
+    for (let i = 0; i < s.length; i++) v.setUint8(offset + i, s.charCodeAt(i));
+  }
+  writeStr(0, 'RIFF');
+  v.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, numChannels, true);
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, byteRate, true);
+  v.setUint16(32, blockAlign, true);
+  v.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data');
+  v.setUint32(40, dataSize, true);
+
+  let off = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function float32ToLinear16Bytes(float32) {
+  const buf = new ArrayBuffer(float32.length * 2);
+  const view = new DataView(buf);
+  for (let i = 0; i < float32.length; i++) {
+    const s = Math.max(-1, Math.min(1, float32[i]));
+    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Uint8Array(buf);
+}
+
+function uint8ToBase64Chunked(u8) {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < u8.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, u8.subarray(i, Math.min(i + chunk, u8.length)));
+  }
+  return btoa(binary);
+}
+
+function stopLiveEnginePreviewPolling() {
+  if (state.livePreviewTimerId != null) {
+    clearInterval(state.livePreviewTimerId);
+    state.livePreviewTimerId = null;
+  }
+  state.livePreviewInFlight = false;
+}
+
+/**
+ * Periodically transcribe accumulated audio so live text works in Electron (Web Speech often never fires onresult).
+ * Uses parallel PCM capture — partial WebM from MediaRecorder usually fails decodeAudioData until stop.
+ */
+async function tickLiveEnginePreview() {
+  if (!state.isRecording || state.livePreviewInFlight) return;
+
+  const sr = state.livePreviewSampleRate || 48000;
+  const minSamples = Math.floor(sr * 0.85);
+  let pcm16k = null;
+
+  const merged = mergeLivePreviewPcm();
+  if (merged && merged.length >= minSamples) {
+    pcm16k = ensurePcm16kMono(merged, sr);
+  } else if (state.mediaRecorder && state.audioChunks.length) {
+    const blob = new Blob(state.audioChunks, { type: state.mediaRecorder.mimeType });
+    if (blob.size < getLivePreviewMinBlobBytes()) return;
+    try {
+      pcm16k = await audioBlobToFloat32(blob);
+    } catch {
+      return;
+    }
+  } else {
+    return;
+  }
+
+  if (!pcm16k || pcm16k.length < 800 || isLikelySilentPcm(pcm16k)) return;
+
+  state.livePreviewInFlight = true;
+  try {
+    let text = '';
+    switch (state.engine) {
+      case 'local-whisper':
+        text = await transcribeWithLocalWhisperFromPcm(pcm16k, { quiet: true });
+        break;
+      case 'openai': {
+        const wav = float32ToWavBlob(pcm16k, 16000);
+        try {
+          text = await transcribeWithOpenAI(wav, 'live-preview.wav');
+        } catch (e) {
+          console.warn('Live preview (OpenAI):', e.message);
+          return;
+        }
+        break;
+      }
+      case 'google-cloud':
+        try {
+          text = await transcribeWithGoogleCloudPcm16k(pcm16k);
+        } catch (e) {
+          console.warn('Live preview (Google):', e.message);
+          return;
+        }
+        break;
+      default:
+        text = await transcribeWithLocalWhisperFromPcm(pcm16k, { quiet: true });
+    }
+
+    const t = text != null ? String(text).trim() : '';
+    if (t && state.isRecording) {
+      state.liveEnginePreviewText = t;
+      updateLiveTranscriptionDisplay();
+    }
+  } finally {
+    state.livePreviewInFlight = false;
+  }
+}
+
+function startLiveEnginePreviewPolling() {
+  stopLiveEnginePreviewPolling();
+  state.liveEnginePreviewText = '';
+  state.livePreviewTimerId = setInterval(() => {
+    tickLiveEnginePreview().catch((e) => console.warn('Live preview tick:', e));
+  }, getLivePreviewIntervalMs());
+  setTimeout(() => {
+    tickLiveEnginePreview().catch((e) => console.warn('Live preview kick:', e));
+  }, 1600);
+}
+
+/**
+ * After recording: merge Whisper (if any) with live Web Speech text; never double-append live + Whisper.
+ * @param {string|null|undefined} whisperText - null/undefined/'' means no Whisper segment
+ */
+function applyPostRecordTranscription(whisperText) {
+  const base = (state.recordingBaseText || '').trim();
+  const liveWeb = [state.liveFinalTranscript, state.liveInterimTranscript]
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const livePreview = (state.liveEnginePreviewText || '').trim();
+  const live = liveWeb || livePreview;
+  const w = whisperText == null ? '' : String(whisperText).trim();
+
+  let segmentForPaste = '';
+  let fullOut = '';
+
+  if (w) {
+    segmentForPaste = w;
+    const sep = base ? ' ' : '';
+    fullOut = base ? `${base}${sep}${w}` : w;
+  } else if (live) {
+    segmentForPaste = live;
+    const sep = base ? ' ' : '';
+    fullOut = base ? `${base}${sep}${live}` : live;
+  } else {
+    fullOut = base;
+  }
+
+  elements.transcriptionText.textContent = fullOut;
+
+  state.recordingBaseText = '';
+  state.liveFinalTranscript = '';
+  state.liveInterimTranscript = '';
+  state.liveEnginePreviewText = '';
+
+  updateAiToolbarVisibility();
+  return { segmentForPaste, fullOut };
+}
+
+// ============================================
 // Recording
 // ============================================
 async function startRecording() {
@@ -519,6 +863,7 @@ async function startRecording() {
       }
     });
 
+    state.livePreviewPcmChunks = [];
     state.audioChunks = [];
     state.mediaRecorder = new MediaRecorder(state.audioStream, {
       mimeType: getSupportedMimeType()
@@ -539,8 +884,25 @@ async function startRecording() {
     state.isRecording = true;
     window.electronAPI.setRecordingState(true);
 
+    state.recordingBaseText = elements.transcriptionText
+      ? elements.transcriptionText.textContent
+      : '';
+    state.liveFinalTranscript = '';
+    state.liveInterimTranscript = '';
+    state.liveEnginePreviewText = '';
+    const livePreviewOn = state.settings.livePreviewEnabled === true;
+    if (livePreviewOn) {
+      startLiveSpeechRecognitionIfAvailable();
+      startLiveEnginePreviewPolling();
+    }
+
     // Update UI
-    setStatus('recording', 'Listening...');
+    setStatus(
+      'recording',
+      livePreviewOn && (state.speechRec || state.livePreviewTimerId)
+        ? 'Listening… (live preview)'
+        : 'Listening...'
+    );
     elements.micButton.classList.add('recording');
     elements.micRing.classList.add('active');
     elements.micContainer.classList.add('recording');
@@ -549,8 +911,8 @@ async function startRecording() {
     elements.waveformLeft.classList.add('active');
     elements.waveformRight.classList.add('active');
 
-    // Start audio visualization
-    setupAudioVisualization(state.audioStream);
+    // Start audio visualization (+ PCM tap for live preview when enabled)
+    setupAudioVisualization(state.audioStream, { captureLivePcm: livePreviewOn });
 
   } catch (error) {
     console.error('Failed to start recording:', error);
@@ -560,6 +922,10 @@ async function startRecording() {
 }
 
 function stopRecording() {
+  state.isRecording = false;
+  stopLiveSpeechRecognition();
+  stopLiveEnginePreviewPolling();
+
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
     state.mediaRecorder.stop();
   }
@@ -569,6 +935,21 @@ function stopRecording() {
     state.audioStream = null;
   }
 
+  if (state.livePreviewProcessor) {
+    try {
+      state.livePreviewProcessor.onaudioprocess = null;
+      state.livePreviewProcessor.disconnect();
+    } catch (_) {}
+    state.livePreviewProcessor = null;
+  }
+  if (state.livePreviewMuteGain) {
+    try {
+      state.livePreviewMuteGain.disconnect();
+    } catch (_) {}
+    state.livePreviewMuteGain = null;
+  }
+  state.livePreviewPcmChunks = [];
+
   if (state.audioContext) {
     try {
       state.audioContext.close();
@@ -577,7 +958,6 @@ function stopRecording() {
     state.analyser = null;
   }
 
-  state.isRecording = false;
   window.electronAPI.setRecordingState(false);
 
   // Update UI
@@ -603,12 +983,35 @@ function getSupportedMimeType() {
 // ============================================
 // Audio Visualization
 // ============================================
-function setupAudioVisualization(stream) {
+function setupAudioVisualization(stream, opts = {}) {
+  const captureLivePcm = opts.captureLivePcm === true;
+
   state.audioContext = new AudioContext();
   state.analyser = state.audioContext.createAnalyser();
   const source = state.audioContext.createMediaStreamSource(stream);
   source.connect(state.analyser);
   state.analyser.fftSize = 64;
+
+  state.livePreviewSampleRate = state.audioContext.sampleRate;
+  if (captureLivePcm) {
+    state.livePreviewPcmChunks = [];
+    const bufferSize = 2048;
+    const processor = state.audioContext.createScriptProcessor(bufferSize, 1, 1);
+    const mute = state.audioContext.createGain();
+    mute.gain.value = 0;
+    source.connect(processor);
+    processor.connect(mute);
+    mute.connect(state.audioContext.destination);
+    processor.onaudioprocess = (e) => {
+      if (!state.isRecording) return;
+      const ch = e.inputBuffer.getChannelData(0);
+      const copy = new Float32Array(ch.length);
+      copy.set(ch);
+      state.livePreviewPcmChunks.push(copy);
+    };
+    state.livePreviewProcessor = processor;
+    state.livePreviewMuteGain = mute;
+  }
 
   const bufferLength = state.analyser.frequencyBinCount;
   const dataArray = new Uint8Array(bufferLength);
@@ -634,10 +1037,11 @@ function setupAudioVisualization(stream) {
 // ============================================
 async function processAudio(audioBlob) {
   state.isProcessing = true;
-  setStatus('processing', 'Transcribing...');
+  setStatus('processing', 'Transcribing…');
 
   try {
     if (!audioBlob || audioBlob.size < 1200) {
+      applyPostRecordTranscription(null);
       setStatus('ready', 'No speech detected');
       showToast('Recording too short or empty.', 'warning');
       return;
@@ -647,12 +1051,14 @@ async function processAudio(audioBlob) {
     try {
       pcm = await audioBlobToFloat32(audioBlob);
     } catch (_) {
+      applyPostRecordTranscription(null);
       setStatus('ready', 'No speech detected');
       showToast('Could not read audio. Try recording a bit longer.', 'warning');
       return;
     }
 
     if (isLikelySilentPcm(pcm)) {
+      applyPostRecordTranscription(null);
       setStatus('ready', 'No speech detected');
       showToast(
         'No clear speech detected (too quiet). Whisper invents text on silence — speak up or move closer to the mic.',
@@ -677,21 +1083,17 @@ async function processAudio(audioBlob) {
         text = await transcribeWithLocalWhisperFromPcm(pcm);
     }
 
-    if (text && text.trim()) {
-      // Display transcription
-      const currentText = elements.transcriptionText.textContent;
-      const separator = currentText && currentText.trim() ? ' ' : '';
-      elements.transcriptionText.textContent = (currentText || '') + separator + text.trim();
+    const { segmentForPaste } = applyPostRecordTranscription(text && text.trim() ? text.trim() : null);
 
+    if (segmentForPaste) {
       let autoPasteOk = true;
       if (state.autoType) {
-        const pasteResult = await window.electronAPI.typeText(text.trim());
+        const pasteResult = await window.electronAPI.typeText(segmentForPaste);
         autoPasteOk = pasteResult.ok;
         if (!autoPasteOk) notifyPasteResult(pasteResult);
       }
 
       setStatus('ready', 'Done! Ready for next input');
-      updateAiToolbarVisibility();
       if (autoPasteOk || !state.autoType) {
         showToast('Transcription complete!', 'success');
       }
@@ -701,6 +1103,7 @@ async function processAudio(audioBlob) {
     }
   } catch (error) {
     console.error('Transcription error:', error);
+    applyPostRecordTranscription(null);
     setStatus('error', 'Transcription failed');
     showToast(error.message || 'Transcription failed', 'error');
   } finally {
@@ -718,25 +1121,32 @@ async function transcribeWithLocalWhisper(audioBlob) {
   return transcribeWithLocalWhisperFromPcm(audioData);
 }
 
-async function transcribeWithLocalWhisperFromPcm(audioData) {
-  // Show progress UI
-  elements.progressContainer.classList.remove('hidden');
-  elements.progressText.textContent = 'Preparing audio...';
-  elements.progressFill.style.width = '5%';
+async function transcribeWithLocalWhisperFromPcm(audioData, opts = {}) {
+  const quiet = opts.quiet === true;
+
+  if (!quiet) {
+    elements.progressContainer.classList.remove('hidden');
+    elements.progressText.textContent = 'Preparing audio...';
+    elements.progressFill.style.width = '5%';
+  }
 
   try {
     // Load model if needed
     if (!localWhisperEngine) {
-      setStatus('processing', 'Loading Whisper model...');
-      elements.progressText.textContent = 'Loading Whisper library...';
-      elements.progressFill.style.width = '10%';
+      if (!quiet) {
+        setStatus('processing', 'Loading Whisper model...');
+        elements.progressText.textContent = 'Loading Whisper library...';
+        elements.progressFill.style.width = '10%';
+      }
 
       try {
         // Import the browser-compatible build from node_modules
         const transformers = await import('./node_modules/@huggingface/transformers/dist/transformers.js');
 
-        elements.progressFill.style.width = '30%';
-        elements.progressText.textContent = 'Downloading Whisper model (first time only)...';
+        if (!quiet) {
+          elements.progressFill.style.width = '30%';
+          elements.progressText.textContent = 'Downloading Whisper model (first time only)...';
+        }
 
         localWhisperEngine = await transformers.pipeline(
           'automatic-speech-recognition',
@@ -747,16 +1157,20 @@ async function transcribeWithLocalWhisperFromPcm(audioData) {
           }
         );
 
-        elements.progressFill.style.width = '90%';
-        elements.progressText.textContent = 'Model ready!';
+        if (!quiet) {
+          elements.progressFill.style.width = '90%';
+          elements.progressText.textContent = 'Model ready!';
+        }
       } catch (err) {
         console.error('Failed to load Whisper model:', err);
         throw new Error('Failed to load Whisper model: ' + err.message);
       }
     }
 
-    elements.progressText.textContent = 'Transcribing...';
-    elements.progressFill.style.width = '60%';
+    if (!quiet) {
+      elements.progressText.textContent = 'Transcribing...';
+      elements.progressFill.style.width = '60%';
+    }
 
     const options = {};
     if (!state.autoDetectLanguage) {
@@ -770,25 +1184,29 @@ async function transcribeWithLocalWhisperFromPcm(audioData) {
     console.log('Local Whisper Transcription Options:', options);
     const result = await localWhisperEngine(audioData, options);
 
-    elements.progressFill.style.width = '100%';
-    elements.progressText.textContent = 'Done!';
-    await new Promise(r => setTimeout(r, 300));
+    if (!quiet) {
+      elements.progressFill.style.width = '100%';
+      elements.progressText.textContent = 'Done!';
+      await new Promise(r => setTimeout(r, 300));
+    }
 
     return result.text || '';
   } finally {
-    elements.progressContainer.classList.add('hidden');
+    if (!quiet) {
+      elements.progressContainer.classList.add('hidden');
+    }
   }
 }
 
 // --- OpenAI Whisper API ---
-async function transcribeWithOpenAI(audioBlob) {
+async function transcribeWithOpenAI(audioBlob, fileName = 'recording.webm') {
   const apiKey = state.settings.openaiApiKey;
   if (!apiKey) {
     throw new Error('OpenAI API key not set. Go to Settings to add your key.');
   }
 
   const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.webm');
+  formData.append('file', audioBlob, fileName);
   formData.append('model', 'whisper-1');
   formData.append('temperature', '0');
 
@@ -855,6 +1273,47 @@ async function transcribeWithGoogleCloud(audioBlob) {
   const data = await response.json();
   if (data.results && data.results.length > 0) {
     return data.results.map(r => r.alternatives[0].transcript).join(' ');
+  }
+  return '';
+}
+
+/** Google STT from raw 16 kHz mono PCM (live preview; avoids WEBM partial blobs). */
+async function transcribeWithGoogleCloudPcm16k(pcm16k) {
+  const apiKey = state.settings.googleApiKey;
+  if (!apiKey) {
+    throw new Error('Google Cloud API key not set. Go to Settings to add your key.');
+  }
+
+  const bytes = float32ToLinear16Bytes(pcm16k);
+  const base64Audio = uint8ToBase64Chunked(bytes);
+
+  const response = await fetch(
+    `https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        config: {
+          encoding: 'LINEAR16',
+          sampleRateHertz: 16000,
+          languageCode: state.autoDetectLanguage ? 'en-US' : (state.settings.language || 'en-US'),
+          alternativeLanguageCodes: state.autoDetectLanguage ? ['es-ES', 'fr-FR', 'de-DE'] : [],
+          enableAutomaticPunctuation: true,
+          model: 'latest_long'
+        },
+        audio: { content: base64Audio }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `Google Cloud API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data.results && data.results.length > 0) {
+    return data.results.map((r) => r.alternatives[0].transcript).join(' ');
   }
   return '';
 }
@@ -979,7 +1438,10 @@ async function saveSettings() {
       : (elements.assistantEnabledToggle ? elements.assistantEnabledToggle.checked : state.settings.assistantEnabled !== false),
     grammarFloatResizable: elements.grammarFloatResizableToggle
       ? elements.grammarFloatResizableToggle.checked
-      : state.settings.grammarFloatResizable !== false
+      : state.settings.grammarFloatResizable !== false,
+    livePreviewEnabled: elements.livePreviewToggleSettings
+      ? elements.livePreviewToggleSettings.checked
+      : state.settings.livePreviewEnabled === true
   };
 
   await window.electronAPI.saveSettings(settings);
@@ -1019,13 +1481,16 @@ async function saveQuickSettings() {
       : state.settings.assistantEnabled !== false,
     grammarFloatResizable: elements.grammarFloatResizableToggle
       ? elements.grammarFloatResizableToggle.checked
-      : state.settings.grammarFloatResizable !== false
+      : state.settings.grammarFloatResizable !== false,
+    livePreviewEnabled: elements.livePreviewToggleSettings
+      ? elements.livePreviewToggleSettings.checked
+      : state.settings.livePreviewEnabled === true
   };
 
   await window.electronAPI.saveSettings(settings);
   state.settings = settings;
   state.autoType = settings.autoType;
-  
+
   // If auto-detect changed, we might need to reload the engine
   if (settings.autoDetectLanguage !== state.autoDetectLanguage) {
     state.autoDetectLanguage = settings.autoDetectLanguage;
