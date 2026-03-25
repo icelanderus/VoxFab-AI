@@ -9,7 +9,8 @@ const {
   screen,
   clipboard,
   systemPreferences,
-  dialog
+  dialog,
+  net
 } = require('electron');
 const { keyboard, Key, sleep } = require('@nut-tree-fork/nut-js');
 const path = require('path');
@@ -564,14 +565,38 @@ function stopWindowMonitor() {
   }
 }
 
+/** Chromium network stack (proxy / TLS like the main window). Node's global fetch() often fails where renderer works. */
+function openAiRequest(url, init) {
+  return net.fetch(url, init);
+}
+
+/** User-visible copy when fetch() to OpenAI fails (Node often reports only "fetch failed"). */
+function friendlyOpenAiNetworkError(err, fallback = 'Request failed.') {
+  if (!err) return fallback;
+  const msg = String(err.message || '');
+  const c = err.cause;
+  const causeMsg = c ? String(c.message || '') : '';
+  const code = err.code || (c && c.code);
+  const blob = `${msg} ${causeMsg} ${String(code || '')}`.toLowerCase();
+  if (
+    /fetch failed/.test(blob) ||
+    /econnrefused|enotfound|etimedout|econnreset|getaddrinfo|certificate|cert_|ssl|tls|proxy/.test(blob) ||
+    ['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET'].includes(code)
+  ) {
+    return "Can't reach OpenAI. Check your internet, VPN or firewall, and that api.openai.com isn't blocked.";
+  }
+  return msg || fallback;
+}
+
 async function quickGrammarScan(text) {
   const apiKey = store.get('openaiApiKey');
   if (!apiKey || !text || !String(text).trim()) {
     return { noApiKey: !apiKey, hasIssues: null, summary: '' };
   }
   const slice = text.length > 3500 ? `${text.slice(0, 3500)}…` : text;
+  let response;
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    response = await openAiRequest('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -591,6 +616,15 @@ async function quickGrammarScan(text) {
         max_tokens: 80
       })
     });
+  } catch (e) {
+    return {
+      noApiKey: false,
+      hasIssues: null,
+      summary: '',
+      scanError: friendlyOpenAiNetworkError(e, "Couldn't analyze text — try again.")
+    };
+  }
+  try {
     if (!response.ok) return { noApiKey: false, hasIssues: null, summary: '' };
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
@@ -820,6 +854,7 @@ async function pushGrammarFloatPayload(text, point, { focusWindow }) {
     hasIssues: scan.hasIssues,
     summary: scan.summary || '',
     noApiKey: !!scan.noApiKey,
+    scanError: scan.scanError || '',
     bgOpacity: grammarFloatBgOpacityOrDefault()
   };
   const push = () => {
@@ -1063,7 +1098,7 @@ ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstructi
   }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await openAiRequest('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1094,7 +1129,7 @@ ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstructi
     return { ok: true, result };
   } catch (e) {
     console.error('grammar-ai-action:', e);
-    return { ok: false, error: e.message || 'AI failed' };
+    return { ok: false, error: friendlyOpenAiNetworkError(e, e.message || 'AI failed') };
   }
 });
 

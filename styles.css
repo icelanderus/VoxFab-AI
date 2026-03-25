@@ -41,6 +41,10 @@
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
   --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --scrollbar-track: rgba(22, 22, 38, 0.85);
+  --scrollbar-thumb: rgba(100, 98, 140, 0.55);
+  --scrollbar-thumb-hover: rgba(130, 128, 175, 0.75);
 }
 
 * {
@@ -859,6 +863,26 @@ kbd {
   border-bottom: 1px solid var(--glass-border);
 }
 
+/* About slide-over: readable title (settings use uppercase .settings-title). */
+.about-panel > .settings-header > .settings-title {
+  text-transform: none;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.about-hero-title {
+  font-size: 22px;
+  text-transform: none;
+  letter-spacing: -0.45px;
+  margin-bottom: 6px;
+  line-height: 1.25;
+}
+
+.about-hero-lead {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
 .settings-title {
   font-size: 15px;
   font-weight: 700;
@@ -877,6 +901,31 @@ kbd {
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.settings-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--radius-sm);
+  margin: 4px 0;
+}
+
+.settings-body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.settings-body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .setting-group {

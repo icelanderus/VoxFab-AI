@@ -283,7 +283,9 @@ grammarAPI.onInit(async (payload) => {
   }
 
   setFabVisual(payload);
-  if (payload.noApiKey) {
+  if (payload.scanError) {
+    setHintLine(payload.scanError);
+  } else if (payload.noApiKey) {
     setHintLine('Add OpenAI API key in VibeType AI settings to scan text and run AI actions.');
   } else if (payload.hasIssues === true) {
     setHintLine(payload.summary || 'Possible writing issues — pick an action below.');
