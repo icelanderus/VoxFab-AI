@@ -9,7 +9,7 @@ on run
                 set frontProcess to first process whose frontmost is true
                 set processName to name of frontProcess
             end tell
-            if processName is not "Electron" and processName is not "Voice To Text" then
+            if processName is not "Electron" and processName is not "VibeType AI" then
                 -- Must use `log` so osascript writes to stderr; `do shell script` only returns to AppleScript (stdout stayed empty and Node never saw updates).
                 log processName
             end if

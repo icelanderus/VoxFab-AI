@@ -1,4 +1,4 @@
 @echo off
-title Voice To Text
+title VibeType AI
 cd /d "%~dp0"
 npm start

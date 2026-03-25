@@ -171,7 +171,7 @@ async function runAction(type) {
   if (!selectedText.trim()) return;
   const settings = await grammarAPI.getSettings();
   if (!settings.openaiApiKey) {
-    setHintLine('Set OpenAI API key in Voice To Text → Settings.');
+    setHintLine('Set OpenAI API key in VibeType AI → Settings.');
     scheduleFit();
     return;
   }
@@ -284,7 +284,7 @@ grammarAPI.onInit(async (payload) => {
 
   setFabVisual(payload);
   if (payload.noApiKey) {
-    setHintLine('Add OpenAI API key in Voice To Text settings to scan text and run AI actions.');
+    setHintLine('Add OpenAI API key in VibeType AI settings to scan text and run AI actions.');
   } else if (payload.hasIssues === true) {
     setHintLine(payload.summary || 'Possible writing issues — pick an action below.');
   } else if (payload.hasIssues === false) {
