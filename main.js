@@ -63,8 +63,8 @@ const store = new ConfigStore({
   bgOpacity: 0.85,
   bgBlur: 12,
   language: 'en',
-  /** Win/Linux: open assistant when clipboard changes after copy. macOS: off (⌘C left free); use ⌘⇧E. */
-  autoGrammarClipboard: true,
+  /** Win/Linux: open assistant when clipboard changes after copy. Default: false (user wants only explicit hotkeys). */
+  autoGrammarClipboard: false,
   /** Allow dragging edges to resize the floating assistant window. */
   grammarFloatResizable: true
 });
@@ -195,6 +195,10 @@ function createWindow() {
     },
     icon: path.join(__dirname, 'assets', 'icon.png')
   });
+  
+  if (process.platform === 'win32') {
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  }
 
   mainWindow.loadFile('index.html');
   mainWindow.setVisibleOnAllWorkspaces(true);
@@ -239,6 +243,9 @@ function createTray() {
           mainWindow.hide();
         } else {
           mainWindow.show();
+          if (process.platform === 'win32') {
+            mainWindow.setAlwaysOnTop(true, 'screen-saver');
+          }
           mainWindow.focus();
         }
       }
@@ -268,6 +275,9 @@ function createTray() {
       mainWindow.hide();
     } else {
       mainWindow.show();
+      if (process.platform === 'win32') {
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      }
       mainWindow.focus();
     }
   });
@@ -288,6 +298,9 @@ function registerGlobalShortcut() {
     toggleRecording();
     if (mainWindow && !mainWindow.isVisible()) {
       mainWindow.show();
+      if (process.platform === 'win32') {
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      }
     }
   };
 
@@ -302,6 +315,7 @@ function registerGlobalShortcut() {
   };
 
   const onGrammarHotkey = () => {
+    if (store.get('assistantEnabled') === false) return;
     openGrammarFloatFromShortcut().catch((e) => console.error('grammar float:', e));
   };
 
@@ -349,7 +363,7 @@ ipcMain.handle('get-settings', () => {
     language: store.get('language'),
     bgOpacity: store.get('bgOpacity'),
     bgBlur: store.get('bgBlur'),
-    autoGrammarClipboard: store.get('autoGrammarClipboard') !== false,
+    assistantEnabled: store.get('assistantEnabled') !== false,
     grammarFloatResizable: store.get('grammarFloatResizable') !== false
   };
 });
@@ -367,10 +381,9 @@ ipcMain.handle('save-settings', (event, settings) => {
     broadcastGrammarFloatAppearance();
   }
   if (settings.bgBlur !== undefined) store.set('bgBlur', settings.bgBlur);
-  if (settings.autoGrammarClipboard !== undefined) {
-    store.set('autoGrammarClipboard', settings.autoGrammarClipboard);
-    if (settings.autoGrammarClipboard === false) {
-      lastGrammarFloatPayloadText = '';
+  if (settings.assistantEnabled !== undefined) {
+    store.set('assistantEnabled', settings.assistantEnabled);
+    if (!settings.assistantEnabled) {
       if (grammarFloatWindow && !grammarFloatWindow.isDestroyed()) {
         grammarFloatWindow.hide();
       }
@@ -381,6 +394,26 @@ ipcMain.handle('save-settings', (event, settings) => {
     applyGrammarFloatResizable();
   }
   return true;
+});
+
+// Custom Window Dragging for Cursor Support
+let activeDragWin = null;
+let dragOffset = { x: 0, y: 0 };
+
+ipcMain.on('window-drag-start', (event, offset) => {
+  activeDragWin = BrowserWindow.fromWebContents(event.sender);
+  dragOffset = offset;
+});
+
+ipcMain.on('window-drag-move', (event) => {
+  if (activeDragWin && !activeDragWin.isDestroyed()) {
+    const { x, y } = screen.getCursorScreenPoint();
+    activeDragWin.setPosition(x - Math.round(dragOffset.x), y - Math.round(dragOffset.y));
+  }
+});
+
+ipcMain.on('window-drag-end', () => {
+  activeDragWin = null;
 });
 
 // Track the last externally focused window
@@ -637,8 +670,8 @@ function ensureGrammarFloatWindow() {
   }
   const canResize = store.get('grammarFloatResizable') !== false;
   grammarFloatWindow = new BrowserWindow({
-    width: 340,
-    height: 320,
+    width: 150,
+    height: 80,
     show: false,
     frame: false,
     transparent: true,
@@ -655,6 +688,11 @@ function ensureGrammarFloatWindow() {
       sandbox: false
     }
   });
+  
+  if (process.platform === 'win32') {
+    grammarFloatWindow.setAlwaysOnTop(true, 'screen-saver');
+  }
+  
   grammarFloatWindow.setMinimumSize(220, 64);
   grammarFloatWindow.setVisibleOnAllWorkspaces(true);
   grammarFloatWindow.loadFile('grammar-float.html');
@@ -704,6 +742,7 @@ async function pushGrammarFloatPayload(text, point, { focusWindow }) {
     push();
   }
   positionGrammarFloatNear(point, win);
+  
   if (focusWindow) {
     win.show();
     win.focus();
@@ -712,7 +751,12 @@ async function pushGrammarFloatPayload(text, point, { focusWindow }) {
   } else {
     win.show();
   }
-  win.setAlwaysOnTop(true, 'floating');
+
+  if (process.platform === 'win32') {
+    win.setAlwaysOnTop(true, 'screen-saver');
+  } else {
+    win.setAlwaysOnTop(true, 'floating');
+  }
   return true;
 }
 
@@ -722,43 +766,7 @@ function grammarClipboardFollowsCopyEnabled() {
 }
 
 function startGrammarClipboardWatcher() {
-  setInterval(() => {
-    if (!grammarClipboardFollowsCopyEnabled()) return;
-    if (Date.now() < grammarClipboardIgnoreUntil) return;
-    if (grammarFloatOpening) return;
-
-    let raw = '';
-    try {
-      raw = clipboard.readText();
-    } catch {
-      return;
-    }
-    const text = (raw || '').trim();
-
-    if (text.length < 2 || text.length > 80000) {
-      prevClipboardTick = text;
-      return;
-    }
-
-    if (text === prevClipboardTick) return;
-    prevClipboardTick = text;
-
-    if (grammarFloatWindow && !grammarFloatWindow.isDestroyed() && grammarFloatWindow.isVisible()) {
-      if (text === lastGrammarFloatPayloadText) return;
-    }
-
-    grammarFloatOpening = true;
-    (async () => {
-      try {
-        const point = screen.getCursorScreenPoint();
-        await pushGrammarFloatPayload(text, point, { focusWindow: false });
-      } catch (e) {
-        console.error('grammar clipboard watcher:', e);
-      } finally {
-        grammarFloatOpening = false;
-      }
-    })();
-  }, 850);
+  // Completely disabled as requested: "Никакого, блядь, Ctrl-C"
 }
 
 async function openGrammarFloatFromShortcut() {
@@ -921,8 +929,6 @@ ipcMain.handle('type-text', async (event, text) => {
 
 const GRAMMAR_AI_PROMPTS = {
   fix: 'Fix any spelling, grammar, and punctuation errors in the following text. Preserve the original meaning and style exactly. Return ONLY the corrected text.',
-  refining:
-    'Rephrase the following text to be clearer, more concise, and have a better flow. Preserve the original intent. Return ONLY the refined text.',
   professional:
     'Rewrite the following text in a formal, professional business tone suitable for an email or report. Return ONLY the rewritten text.',
   summary:
@@ -994,6 +1000,11 @@ ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstructi
     console.error('grammar-ai-action:', e);
     return { ok: false, error: e.message || 'AI failed' };
   }
+});
+
+ipcMain.handle('open-writing-assistant', async () => {
+  await openGrammarFloatFromShortcut();
+  return true;
 });
 
 ipcMain.handle('grammar-float-close', () => {

@@ -25,7 +25,7 @@ while ($true) {
         $process = Get-Process -Id $procId -ErrorAction SilentlyContinue
         if ($process) {
             $name = $process.ProcessName
-            if ($name -ne "Voice To Text") {
+            if ($name -ne "Voice To Text" -and $name -ne "electron" -and $name -ne "Electron") {
                 Write-Output "HANDLE:$h NAME:$name"
                 [Console]::Out.Flush()
             }

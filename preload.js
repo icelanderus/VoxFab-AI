@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeWindow: () => ipcRenderer.invoke('close-window'),
   setRecordingState: (state) => ipcRenderer.invoke('set-recording-state', state),
   captureSelection: () => ipcRenderer.invoke('capture-selection'),
+  openWritingAssistant: () => ipcRenderer.invoke('open-writing-assistant'),
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
 
   // Events from main process
@@ -36,5 +37,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   onAppToast: (callback) => {
     ipcRenderer.on('app-toast', (_event, payload) => callback(payload));
-  }
+  },
+  
+  // Custom Window Dragging (for cursor support on Windows)
+  startDrag: (offset) => ipcRenderer.send('window-drag-start', offset),
+  moveDrag: () => ipcRenderer.send('window-drag-move'),
+  endDrag: () => ipcRenderer.send('window-drag-end')
 });

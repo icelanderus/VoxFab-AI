@@ -99,9 +99,15 @@ html {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  -webkit-app-region: drag;
+  cursor: grab;
   border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
+}
+
+/* macOS: native window drag (smooth); no IPC moveDrag. Default cursor per user preference. */
+html.platform-darwin .title-bar {
+  cursor: default;
+  -webkit-app-region: drag;
 }
 
 .title-bar-left {
@@ -604,7 +610,6 @@ html {
 }
 
 #ai-fix-btn:hover { color: #ffd700; }
-#ai-refine-btn:hover { color: #8b5cf6; }
 #ai-formal-btn:hover { color: #ec4899; }
 #ai-summary-btn:hover { color: #10b981; }
 #ai-reply-btn:hover { color: #00d4ff; }

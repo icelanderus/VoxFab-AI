@@ -13,12 +13,6 @@ const ACTION_DEFS = [
     svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2"/><path d="m19 3-1 2"/><path d="m5 21 1-2"/><path d="m19 21-1-2"/></svg>'
   },
   {
-    type: 'refining',
-    id: 'ai-refine-btn',
-    title: 'Refine',
-    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
-  },
-  {
     type: 'professional',
     id: 'ai-formal-btn',
     title: 'Professional',
@@ -83,7 +77,7 @@ function toggleGrammarCustomPrompt() {
   if (!nowHidden) {
     customIn.focus();
   }
-  scheduleFit();
+  fitFloatToContent(350);
 }
 
 const FAB_DRAG_HINT = ' · Tap: panel · drag top bar to move';
@@ -102,7 +96,6 @@ if (typeof grammarAPI.onAppearance === 'function') {
 
 let lastFitW = 0;
 let lastFitH = 0;
-let fitDebounceTimer = null;
 
 function setFabVisual(payload) {
   fab.classList.remove('state-ok', 'state-warn', 'state-neutral', 'state-idle');
@@ -123,14 +116,23 @@ function setFabVisual(payload) {
   }
 }
 
-function fitFloatToContent() {
+let isResizableSetting = false;
+
+function fitFloatToContent(widthLimit = 350) {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       const open = panel.classList.contains('open');
       const r = root.getBoundingClientRect();
-      const w = Math.min(460, Math.max(open ? 300 : 80, Math.ceil(r.width) + 14));
-      const h = Math.min(780, Math.max(open ? 88 : 64, Math.ceil(r.height) + 14));
+      
+      // Calculate needed window size, but cap the AUTO-WIDTH at widthLimit
+      let w = Math.max(open ? 300 : 80, Math.ceil(r.width) + 14);
+      if (widthLimit) {
+        w = Math.min(widthLimit, w);
+      }
+      const h = Math.min(950, Math.max(open ? 88 : 64, Math.ceil(r.height) + 20));
+      
       if (Math.abs(w - lastFitW) <= 1 && Math.abs(h - lastFitH) <= 1) return;
+      
       lastFitW = w;
       lastFitH = h;
       grammarAPI.resize(w, h);
@@ -138,17 +140,10 @@ function fitFloatToContent() {
   });
 }
 
-function scheduleFit() {
-  if (fitDebounceTimer) clearTimeout(fitDebounceTimer);
-  fitDebounceTimer = setTimeout(() => {
-    fitDebounceTimer = null;
-    fitFloatToContent();
-  }, 48);
-}
+// Remove ResizeObserver for window size to avoid fighting manual resize
+// We only auto-fit on specific triggers now.
 
-new ResizeObserver(() => {
-  scheduleFit();
-}).observe(root);
+/* No global ResizeObserver for the window to avoid fighting manual resize. */
 
 function buildActionButtons() {
   actionsEl.innerHTML = '';
@@ -191,9 +186,6 @@ async function runAction(type) {
     resultEl.textContent = lastResult;
     resultEl.classList.add('visible');
     applyRow.style.display = 'flex';
-    setHintLine(
-      autoType ? 'Review result, then Apply & paste.' : 'Review result — Apply & paste when ready.'
-    );
   } catch (e) {
     setHintLine(e.message || 'AI failed');
     resultEl.classList.remove('visible');
@@ -203,7 +195,8 @@ async function runAction(type) {
     actionsEl.querySelectorAll('button').forEach((btn) => {
       btn.disabled = false;
     });
-    scheduleFit();
+    // Force snap because result is back, with 350 limit
+    fitFloatToContent(350);
   }
 }
 
@@ -211,7 +204,7 @@ fab.addEventListener('click', () => {
   panel.classList.toggle('open');
   lastFitW = 0;
   lastFitH = 0;
-  scheduleFit();
+  fitFloatToContent(350);
 });
 
 floatClose.addEventListener('click', () => grammarAPI.close());
@@ -231,7 +224,7 @@ dismissResult.addEventListener('click', () => {
   lastResult = '';
   resultEl.classList.remove('visible');
   applyRow.style.display = 'none';
-  scheduleFit();
+  fitFloatToContent(350);
 });
 
 customIn.addEventListener('keydown', (e) => {
@@ -258,7 +251,7 @@ customGo.addEventListener('click', async () => {
     setHintLine(e.message || 'AI failed');
   } finally {
     thinking.classList.add('hidden');
-    scheduleFit();
+    fitFloatToContent(350);
   }
 });
 
@@ -281,8 +274,12 @@ grammarAPI.onInit(async (payload) => {
 
   const settings = await grammarAPI.getSettings();
   autoType = settings.autoType !== false;
+  isResizableSetting = settings.grammarFloatResizable !== false;
+  root.classList.toggle('resizable', isResizableSetting);
+  document.body.classList.toggle('resizable-active', isResizableSetting);
+
   if (typeof grammarAPI.setFloatResizable === 'function') {
-    grammarAPI.setFloatResizable(settings.grammarFloatResizable !== false);
+    grammarAPI.setFloatResizable(isResizableSetting);
   }
 
   setFabVisual(payload);
@@ -298,5 +295,49 @@ grammarAPI.onInit(async (payload) => {
 
   buildActionButtons();
   thinking.classList.add('hidden');
-  scheduleFit();
+  
+  // Snap to content initially
+  fitFloatToContent();
 });
+
+if (window.grammarAPI && window.grammarAPI.platform === 'darwin') {
+  document.documentElement.classList.add('platform-darwin');
+}
+
+setupDraggableHeader();
+
+function setupDraggableHeader() {
+  const header = document.querySelector('.float-chrome-header');
+  if (!header) return;
+
+  if (window.grammarAPI.platform === 'darwin') {
+    return;
+  }
+
+  let isDragging = false;
+
+  header.addEventListener('mousedown', (e) => {
+    // Don't drag if clicking buttons
+    if (e.target.closest('button')) return;
+    
+    isDragging = true;
+    const offset = {
+      x: e.screenX - window.screenX,
+      y: e.screenY - window.screenY
+    };
+    window.grammarAPI.startDrag(offset);
+  });
+
+  window.addEventListener('mousemove', () => {
+    if (isDragging) {
+      window.grammarAPI.moveDrag();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      window.grammarAPI.endDrag();
+    }
+  });
+}

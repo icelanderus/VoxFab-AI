@@ -139,16 +139,17 @@
           </label>
         </div>
 
-        <!-- Floating / writing assistant (clipboard on Win/Linux; macOS: ⌘⇧E) -->
-        <div class="quick-setting-item" id="assistant-clipboard-quick-item" title="Writing assistant: on after copy (Windows/Linux). macOS: ⌘⇧E — copy is not hooked.">
+        <!-- Assistant Toggle (Sparkle) -->
+        <div class="quick-setting-item" id="assistant-enabled-quick-item" title="Writing Assistant (Ctrl+Shift+E)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
           </svg>
           <label class="toggle-switch mini">
-            <input type="checkbox" id="assistant-clipboard-toggle" checked>
+            <input type="checkbox" id="assistant-enabled-toggle" checked>
             <span class="toggle-slider"></span>
           </label>
         </div>
+
       </div>
 
       <!-- Progress (for model download) -->
@@ -209,6 +210,11 @@
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
               </svg>
             </button>
+            <button type="button" class="action-btn ai-btn" id="writing-assistant-btn" title="Writing assistant" aria-label="Writing assistant">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+              </svg>
+            </button>
             <button class="action-btn ai-btn hidden" id="ai-undo-btn" title="↺ Undo AI Action">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 2v6h6"/>
@@ -222,12 +228,6 @@
                 <path d="m19 3-1 2"/>
                 <path d="m5 21 1-2"/>
                 <path d="m19 21-1-2"/>
-              </svg>
-            </button>
-            <button class="action-btn ai-btn" id="ai-refine-btn" title="📝 Refine">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 20h9"/>
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
               </svg>
             </button>
             <button class="action-btn ai-btn" id="ai-formal-btn" title="⚡ Professional">
@@ -318,11 +318,12 @@
           <input type="password" id="google-key" class="setting-input" placeholder="API Key...">
         </div>
 
-        <div class="setting-group" id="assistant-clipboard-settings-group">
-          <label class="setting-label">Writing assistant on copy</label>
-          <div class="setting-description" id="assistant-clipboard-settings-desc">Windows/Linux: open the floating assistant when the clipboard changes after copy (Ctrl+C). macOS: not used for copy (⌘C stays free); use ⌘⇧E to open the assistant.</div>
+
+        <div class="setting-group" id="assistant-enabled-settings-group">
+          <label class="setting-label">Writing Assistant</label>
+          <div class="setting-description">Enable or disable AI Assistant features and global shortcuts (Ctrl+Shift+E).</div>
           <label class="toggle-switch">
-            <input type="checkbox" id="auto-grammar-clipboard-toggle" checked>
+            <input type="checkbox" id="assistant-enabled-toggle-settings" checked>
             <span class="toggle-slider"></span>
           </label>
         </div>
