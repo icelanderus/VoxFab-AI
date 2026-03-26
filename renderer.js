@@ -110,6 +110,7 @@ const elements = {
   customPromptInput: document.getElementById('custom-prompt-input'),
   customPromptGo: document.getElementById('custom-prompt-go'),
   aiThinking: document.getElementById('ai-thinking'),
+  transcriptionOverlay: document.getElementById('transcription-overlay'),
 
   // Appearance
   bgOpacitySlider: document.getElementById('bg-opacity-slider'),
@@ -1367,6 +1368,12 @@ async function audioBlobToFloat32(blob) {
 function setStatus(type, message) {
   elements.statusDot.className = 'status-dot ' + type;
   elements.statusText.textContent = message;
+  
+  // Show/Hide transcription overlay during processing
+  if (elements.transcriptionOverlay) {
+    elements.transcriptionOverlay.classList.toggle('hidden', type !== 'processing');
+    elements.transcriptionOverlay.classList.toggle('visible', type === 'processing');
+  }
 }
 
 function updateEngineBadge() {

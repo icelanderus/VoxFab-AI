@@ -169,7 +169,12 @@
       </div>
 
       <!-- Transcription Output -->
-      <div class="transcription-container">
+      <div class="transcription-container" id="transcription-container">
+        <div id="transcription-overlay" class="spinner-overlay hidden">
+          <div class="spinner-visual-container">
+            <div id="transcription-spinner" class="rotating-spinner"></div>
+          </div>
+        </div>
         <div class="transcription-header">
           <span class="transcription-label">Transcription</span>
           <div class="transcription-actions">
@@ -426,7 +431,7 @@
         <div class="setting-group">
           <div class="about-hero-title">Speak into Existence</div>
           <div class="setting-description about-hero-lead">
-            VibeType AI is designed to save you time. Stop typing like a grandpa and start speaking naturally — it handles transcription and types directly into any app. It is also a system-wide writing helper: stay in flow, polish text faster, and get cleaner output in docs, email, Slack, IDEs, and browsers.
+            In a world where you just want to speak things into existence fast, where you don't want to waste time—if you're one of those who feels like they waste a ton of time while clicking keys and just want to speak with a natural voice and explain your functional requests—this application should help save tons of time and automate this process.
           </div>
         </div>
 
@@ -453,21 +458,22 @@
 
         <div class="setting-group about-developer">
           <div class="setting-description">
-            Developed by 🤠 <a href="https://www.linkedin.com/in/ilya-tsuprun" target="_blank" rel="noopener noreferrer" class="about-link">Ilya Tsuprun</a>
+            vibe-coded by 🤠 <a href="https://www.linkedin.com/in/ilya-tsuprun" target="_blank" rel="noopener noreferrer" class="about-link">Ilya Tsuprun</a>
           </div>
         </div>
 
-        <div class="setting-group" style="margin-top: auto; opacity: 0.6; padding-top: 20px; border-top: 1px solid var(--glass-border);">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            <span style="font-size: 11px; font-weight: 600;">Privacy First</span>
+        <div class="setting-group" style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--glass-border);">
+          <div style="opacity: 0.6;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              <span style="font-size: 11px; font-weight: 600;">Privacy First</span>
+            </div>
+            <div class="setting-description" style="font-size: 10px;">
+              Local transcription available. Data stays on your machine.
+            </div>
           </div>
-          <div class="setting-description" style="font-size: 10px;">
-            Local transcription is available via Whisper — your audio can stay on your machine. OpenAI modes may send audio or text to OpenAI per their policies; use Settings to control keys and features.
-          </div>
-        </div>
         </div>
       </div>
     </div>

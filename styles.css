@@ -1339,3 +1339,81 @@ input[type="range"]:active::-webkit-slider-thumb {
  white-space: nowrap;
  min-width: 80px;
 }
+
+/* ========================================
+   Rotating Gradient Spinner & Overlay
+   ======================================== */
+.spinner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent; /* Clear backdrop as requested */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 32%;
+  border-radius: var(--radius-md);
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-base);
+}
+
+.spinner-overlay.visible {
+  opacity: 1;
+}
+
+.spinner-visual-container {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  /* Matches var(--bg-secondary) base color to blend when empty */
+  background: rgb(25, 25, 45); 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Shadow is now the same color as background to avoid "dark spot" */
+  box-shadow: 0 0 20px 8px rgb(25, 25, 45);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.rotating-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: conic-gradient(from 0deg, #00d4ff, #22d3ee, #6366f1, #8b5cf6, #a78bfa, #00d4ff);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 10px, #000 11px, #000 14px, transparent 15px);
+  mask: radial-gradient(circle closest-side, transparent 10px, #000 11px, #000 14px, transparent 15px);
+  animation: grspin 0.75s linear infinite;
+  position: relative;
+  z-index: 21;
+}
+
+@keyframes grspin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+#transcription-container {
+  position: relative;
+}
+
+/* Developer Credit & Links */
+.about-developer {
+  margin-top: 12px;
+}
+.about-link {
+  color: var(--accent-cyan);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--transition-base);
+}
+.about-link:hover {
+  color: var(--accent-purple);
+  text-decoration: underline;
+}
