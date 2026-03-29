@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureSelection: () => ipcRenderer.invoke('capture-selection'),
   openWritingAssistant: () => ipcRenderer.invoke('open-writing-assistant'),
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
+  enterMiniMode: () => ipcRenderer.invoke('enter-mini-mode'),
+  exitMiniMode: () => ipcRenderer.invoke('exit-mini-mode'),
+  toggleRecordingMain: () => ipcRenderer.invoke('toggle-recording-main'),
 
   // Events from main process
   onToggleRecording: (callback) => {

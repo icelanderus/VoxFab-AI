@@ -118,7 +118,8 @@ const elements = {
   assistantEnabledToggle: document.getElementById('assistant-enabled-toggle'),
   assistantEnabledToggleSettings: document.getElementById('assistant-enabled-toggle-settings'),
   grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle'),
-  livePreviewToggleSettings: document.getElementById('live-preview-toggle-settings')
+  livePreviewToggleSettings: document.getElementById('live-preview-toggle-settings'),
+  collapseBtn: document.getElementById('collapse-btn')
 };
 
 function renderHotkeyHint() {
@@ -291,6 +292,7 @@ function setupEventListeners() {
   // Window controls
   if (elements.minimizeBtn) elements.minimizeBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
   if (elements.closeBtn) elements.closeBtn.addEventListener('click', () => window.electronAPI.closeWindow());
+  if (elements.collapseBtn) elements.collapseBtn.addEventListener('click', () => window.electronAPI.enterMiniMode());
   const aboutBtn = document.getElementById('about-btn');
   if (aboutBtn) {
     aboutBtn.addEventListener('click', () => {

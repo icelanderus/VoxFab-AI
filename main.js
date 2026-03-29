@@ -80,6 +80,7 @@ let aboutWindow = null;
 let grammarLoaderWindow = null;
 let tray = null;
 let isRecording = false;
+let miniFabWindow = null;
 
 let grammarClipboardIgnoreUntil = 0;
 /** Last clipboard text seen by the watcher (change detection between polls). */
@@ -298,8 +299,11 @@ function createTray() {
 
 function toggleRecording() {
   isRecording = !isRecording;
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('toggle-recording', isRecording);
+  }
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    miniFabWindow.webContents.send('toggle-recording', isRecording);
   }
 }
 
@@ -409,6 +413,31 @@ ipcMain.handle('save-settings', (event, settings) => {
   }
   if (settings.livePreviewEnabled !== undefined) {
     store.set('livePreviewEnabled', settings.livePreviewEnabled);
+  }
+  return true;
+});
+
+ipcMain.handle('enter-mini-mode', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+  }
+  ensureMiniFabWindow();
+  if (miniFabWindow) {
+    miniFabWindow.show();
+  }
+  return true;
+});
+
+ipcMain.handle('exit-mini-mode', () => {
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    miniFabWindow.hide();
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    if (process.platform === 'win32') {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    }
+    mainWindow.focus();
   }
   return true;
 });
@@ -1164,6 +1193,46 @@ ipcMain.on('grammar-float-resize', (_event, { width, height }) => {
   const w = Math.max(56, Math.round(Number(width) || 56));
   const h = Math.max(56, Math.round(Number(height) || 56));
   grammarFloatWindow.setSize(w, h);
+});
+
+function ensureMiniFabWindow() {
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    return miniFabWindow;
+  }
+  miniFabWindow = new BrowserWindow({
+    width: 90,
+    height: 90,
+    show: false,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+
+  if (process.platform === 'win32') {
+    miniFabWindow.setAlwaysOnTop(true, 'screen-saver');
+  }
+
+  miniFabWindow.loadFile('mini-fab.html');
+  miniFabWindow.on('closed', () => {
+    miniFabWindow = null;
+  });
+  return miniFabWindow;
+}
+
+ipcMain.handle('toggle-recording-main', () => {
+  toggleRecording();
+  return isRecording;
 });
 
 ipcMain.on('grammar-float-set-resizable', (_event, { enabled }) => {
