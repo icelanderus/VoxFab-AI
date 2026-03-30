@@ -172,15 +172,15 @@ async function init() {
   }
 
   // Listen for global hotkey from main process
-  window.electronAPI.onToggleRecording((isRecording) => {
-    if (isRecording && !state.isRecording && !state.isProcessing) {
-      startRecording();
-    } else if (!isRecording && state.isRecording) {
-      stopRecording();
-    } else if (state.isRecording) {
-      stopRecording();
-    } else if (!state.isRecording && !state.isProcessing) {
-      startRecording();
+  window.electronAPI.onToggleRecording((recording) => {
+    if (recording) {
+      if (!state.isRecording && !state.isProcessing) {
+        startRecording();
+      }
+    } else {
+      if (state.isRecording) {
+        stopRecording();
+      }
     }
   });
 

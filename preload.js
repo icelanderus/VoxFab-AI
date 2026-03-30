@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enterMiniMode: () => ipcRenderer.invoke('enter-mini-mode'),
   exitMiniMode: () => ipcRenderer.invoke('exit-mini-mode'),
   toggleRecordingMain: () => ipcRenderer.invoke('toggle-recording-main'),
+  getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
 
   // Events from main process
   onToggleRecording: (callback) => {

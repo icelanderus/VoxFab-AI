@@ -424,6 +424,8 @@ ipcMain.handle('enter-mini-mode', () => {
   ensureMiniFabWindow();
   if (miniFabWindow) {
     miniFabWindow.show();
+    // Immediate sync of recording state to the FAB
+    miniFabWindow.webContents.send('toggle-recording', isRecording);
   }
   return true;
 });
@@ -1232,6 +1234,10 @@ function ensureMiniFabWindow() {
 
 ipcMain.handle('toggle-recording-main', () => {
   toggleRecording();
+  return isRecording;
+});
+
+ipcMain.handle('get-recording-state', () => {
   return isRecording;
 });
 

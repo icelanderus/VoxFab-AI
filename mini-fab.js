@@ -7,10 +7,24 @@ let isRecording = false;
 let isDragging = false;
 let startPos = { x: 0, y: 0 };
 let startTime = 0;
+let lastShownTime = Date.now();
+
+// Initial state fetch
+window.electronAPI.getRecordingState().then(recording => {
+  updateRecordingUI(recording);
+});
+
+// Update lastShownTime whenever we receive the sync event
+window.electronAPI.onToggleRecording(() => {
+  lastShownTime = Date.now();
+});
 
 // Dragging logic
 fabCircle.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return; // Left click only
+  
+  // Prevent accidental clicks immediately after window appears (e.g. from the collapse button click)
+  if (Date.now() - lastShownTime < 150) return;
   
   isDragging = false;
   startPos = { x: e.screenX, y: e.screenY };
@@ -73,8 +87,3 @@ window.electronAPI.onToggleRecording((recording) => {
   updateRecordingUI(recording);
 });
 
-// Initial state fetch if needed (though onToggleRecording should fire)
-window.electronAPI.getSettings().then(settings => {
-  // We can't easily get the current live isRecording state from settings, 
-  // but main process will broadcast it when mini-window opens.
-});
