@@ -625,6 +625,17 @@ html.platform-darwin .title-bar {
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.16);
   padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.history-item:hover {
+  border-color: var(--glass-border-hover);
+}
+
+.history-item.selected {
+  border-color: rgba(0, 212, 255, 0.45);
+  background: rgba(0, 212, 255, 0.08);
 }
 
 .history-item-index {
@@ -640,6 +651,9 @@ html.platform-darwin .title-bar {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 /* Transcription Footer (AI Actions) */

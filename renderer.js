@@ -36,7 +36,8 @@ let state = {
   livePreviewProcessor: null,
   livePreviewMuteGain: null,
   currentTextTab: 'transcription',
-  transcriptionHistory: []
+  transcriptionHistory: [],
+  selectedHistoryIndex: -1
 };
 
 const ICONS = {
@@ -566,8 +567,12 @@ function setActiveTextTab(tab) {
     elements.historyTabBtn.classList.toggle('active', !transcriptionActive);
     elements.historyTabBtn.setAttribute('aria-selected', transcriptionActive ? 'false' : 'true');
   }
-  if (elements.copyBtn) elements.copyBtn.classList.toggle('hidden', !transcriptionActive);
-  if (elements.typeBtn) elements.typeBtn.classList.toggle('hidden', !transcriptionActive);
+  if (!transcriptionActive && state.selectedHistoryIndex < 0 && state.transcriptionHistory.length > 0) {
+    state.selectedHistoryIndex = 0;
+    renderHistoryList();
+  }
+  if (elements.copyBtn) elements.copyBtn.classList.remove('hidden');
+  if (elements.typeBtn) elements.typeBtn.classList.remove('hidden');
   if (elements.clearBtn) elements.clearBtn.classList.toggle('hidden', !transcriptionActive);
   if (elements.clearHistoryBtn) elements.clearHistoryBtn.classList.toggle('hidden', transcriptionActive);
   updateAiToolbarVisibility();
@@ -578,19 +583,27 @@ function renderHistoryList() {
   elements.historyList.innerHTML = '';
 
   if (!state.transcriptionHistory.length) {
+    state.selectedHistoryIndex = -1;
     elements.historyEmpty.classList.remove('hidden');
     return;
+  }
+  if (state.selectedHistoryIndex < 0 || state.selectedHistoryIndex >= state.transcriptionHistory.length) {
+    state.selectedHistoryIndex = 0;
   }
 
   elements.historyEmpty.classList.add('hidden');
   state.transcriptionHistory.forEach((text, idx) => {
     const row = document.createElement('div');
-    row.className = 'history-item';
+    row.className = `history-item${idx === state.selectedHistoryIndex ? ' selected' : ''}`;
     row.innerHTML = `
       <span class="history-item-index">#${state.transcriptionHistory.length - idx}</span>
       <div class="history-item-text"></div>
     `;
     row.querySelector('.history-item-text').textContent = text;
+    row.addEventListener('click', () => {
+      state.selectedHistoryIndex = idx;
+      renderHistoryList();
+    });
     elements.historyList.appendChild(row);
   });
 }
@@ -599,10 +612,20 @@ function addTranscriptionToHistory(text) {
   const normalized = String(text || '').trim();
   if (!normalized) return;
   state.transcriptionHistory.unshift(normalized);
+  state.selectedHistoryIndex = 0;
   if (state.transcriptionHistory.length > 200) {
     state.transcriptionHistory = state.transcriptionHistory.slice(0, 200);
   }
   renderHistoryList();
+}
+
+function getCurrentTextForActions() {
+  if (state.currentTextTab === 'history') {
+    const idx = state.selectedHistoryIndex;
+    if (idx < 0 || idx >= state.transcriptionHistory.length) return '';
+    return state.transcriptionHistory[idx] || '';
+  }
+  return elements.transcriptionText.textContent || '';
 }
 
 // ============================================
@@ -1774,7 +1797,7 @@ function initAboutDiscovery() {
 // Action Buttons
 // ============================================
 function copyTranscription() {
-  const text = elements.transcriptionText.textContent;
+  const text = getCurrentTextForActions();
   if (!text) return;
 
   navigator.clipboard.writeText(text).then(() => {
@@ -1785,7 +1808,7 @@ function copyTranscription() {
 }
 
 async function typeTranscription() {
-  const text = elements.transcriptionText.textContent;
+  const text = getCurrentTextForActions();
   if (!text) return;
 
   const result = await window.electronAPI.typeText(text);
@@ -1803,6 +1826,7 @@ function clearTranscription() {
 
 function clearTranscriptionHistory() {
   state.transcriptionHistory = [];
+  state.selectedHistoryIndex = -1;
   renderHistoryList();
 }
 
