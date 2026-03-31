@@ -34,7 +34,9 @@ let state = {
   livePreviewPcmChunks: [],
   livePreviewSampleRate: 48000,
   livePreviewProcessor: null,
-  livePreviewMuteGain: null
+  livePreviewMuteGain: null,
+  currentTextTab: 'transcription',
+  transcriptionHistory: []
 };
 
 const ICONS = {
@@ -59,6 +61,11 @@ const elements = {
   engineBadge: document.getElementById('settings-toggle'),
   engineName: document.getElementById('engine-name'),
   transcriptionText: document.getElementById('transcription-text'),
+  historyText: document.getElementById('history-text'),
+  historyList: document.getElementById('history-list'),
+  historyEmpty: document.getElementById('history-empty'),
+  transcriptionTabBtn: document.getElementById('transcription-tab-btn'),
+  historyTabBtn: document.getElementById('history-tab-btn'),
   waveformLeft: document.getElementById('waveform-left'),
   waveformRight: document.getElementById('waveform-right'),
   progressContainer: document.getElementById('progress-container'),
@@ -71,6 +78,7 @@ const elements = {
   analyzeBtn: document.getElementById('analyze-btn'),
   writingAssistantBtn: document.getElementById('writing-assistant-btn'),
   clearBtn: document.getElementById('clear-btn'),
+  clearHistoryBtn: document.getElementById('clear-history-btn'),
   minimizeBtn: document.getElementById('minimize-btn'),
   closeBtn: document.getElementById('close-btn'),
 
@@ -159,6 +167,8 @@ function renderHotkeyHint() {
 // ============================================
 async function init() {
   await loadSettings();
+  renderHistoryList();
+  setActiveTextTab('transcription');
   setupEventListeners();
   setStatus('ready', 'Ready');
   updateAiToolbarVisibility();
@@ -288,6 +298,13 @@ function setupEventListeners() {
     });
   }
   if (elements.clearBtn) elements.clearBtn.addEventListener('click', clearTranscription);
+  if (elements.clearHistoryBtn) elements.clearHistoryBtn.addEventListener('click', clearTranscriptionHistory);
+  if (elements.transcriptionTabBtn) {
+    elements.transcriptionTabBtn.addEventListener('click', () => setActiveTextTab('transcription'));
+  }
+  if (elements.historyTabBtn) {
+    elements.historyTabBtn.addEventListener('click', () => setActiveTextTab('history'));
+  }
 
   // Window controls
   if (elements.minimizeBtn) elements.minimizeBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
@@ -527,6 +544,65 @@ TEXT TO ANALYZE:
 
 function applyAppearance(opacity) {
   document.documentElement.style.setProperty('--bg-opacity', opacity);
+}
+
+function setActiveTextTab(tab) {
+  const nextTab = tab === 'history' ? 'history' : 'transcription';
+  state.currentTextTab = nextTab;
+
+  const transcriptionActive = nextTab === 'transcription';
+  if (elements.transcriptionText) {
+    elements.transcriptionText.classList.toggle('hidden', !transcriptionActive);
+    elements.transcriptionText.contentEditable = transcriptionActive ? 'true' : 'false';
+  }
+  if (elements.historyText) {
+    elements.historyText.classList.toggle('hidden', transcriptionActive);
+  }
+  if (elements.transcriptionTabBtn) {
+    elements.transcriptionTabBtn.classList.toggle('active', transcriptionActive);
+    elements.transcriptionTabBtn.setAttribute('aria-selected', transcriptionActive ? 'true' : 'false');
+  }
+  if (elements.historyTabBtn) {
+    elements.historyTabBtn.classList.toggle('active', !transcriptionActive);
+    elements.historyTabBtn.setAttribute('aria-selected', transcriptionActive ? 'false' : 'true');
+  }
+  if (elements.copyBtn) elements.copyBtn.classList.toggle('hidden', !transcriptionActive);
+  if (elements.typeBtn) elements.typeBtn.classList.toggle('hidden', !transcriptionActive);
+  if (elements.clearBtn) elements.clearBtn.classList.toggle('hidden', !transcriptionActive);
+  if (elements.clearHistoryBtn) elements.clearHistoryBtn.classList.toggle('hidden', transcriptionActive);
+  updateAiToolbarVisibility();
+}
+
+function renderHistoryList() {
+  if (!elements.historyList || !elements.historyEmpty) return;
+  elements.historyList.innerHTML = '';
+
+  if (!state.transcriptionHistory.length) {
+    elements.historyEmpty.classList.remove('hidden');
+    return;
+  }
+
+  elements.historyEmpty.classList.add('hidden');
+  state.transcriptionHistory.forEach((text, idx) => {
+    const row = document.createElement('div');
+    row.className = 'history-item';
+    row.innerHTML = `
+      <span class="history-item-index">#${state.transcriptionHistory.length - idx}</span>
+      <div class="history-item-text"></div>
+    `;
+    row.querySelector('.history-item-text').textContent = text;
+    elements.historyList.appendChild(row);
+  });
+}
+
+function addTranscriptionToHistory(text) {
+  const normalized = String(text || '').trim();
+  if (!normalized) return;
+  state.transcriptionHistory.unshift(normalized);
+  if (state.transcriptionHistory.length > 200) {
+    state.transcriptionHistory = state.transcriptionHistory.slice(0, 200);
+  }
+  renderHistoryList();
 }
 
 // ============================================
@@ -849,6 +925,10 @@ function applyPostRecordTranscription(whisperText) {
   state.liveEnginePreviewText = '';
 
   updateAiToolbarVisibility();
+  if (segmentForPaste) {
+    addTranscriptionToHistory(segmentForPaste);
+    setActiveTextTab('transcription');
+  }
   return { segmentForPaste, fullOut };
 }
 
@@ -1521,6 +1601,10 @@ async function saveQuickSettings() {
 // ============================================
 
 function updateAiToolbarVisibility() {
+  if (state.currentTextTab !== 'transcription') {
+    elements.aiToolbar.classList.add('hidden');
+    return;
+  }
   const hasText = elements.transcriptionText.textContent.trim().length > 0;
   
   // Update the primary Analyze/Capture button based on text presence
@@ -1715,6 +1799,11 @@ async function typeTranscription() {
 function clearTranscription() {
   elements.transcriptionText.textContent = '';
   updateAiToolbarVisibility();
+}
+
+function clearTranscriptionHistory() {
+  state.transcriptionHistory = [];
+  renderHistoryList();
 }
 
 // ============================================

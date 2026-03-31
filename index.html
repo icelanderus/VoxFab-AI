@@ -184,7 +184,10 @@
           </div>
         </div>
         <div class="transcription-header">
-          <span class="transcription-label">Transcription</span>
+          <div class="transcription-tabs" role="tablist" aria-label="Transcription views">
+            <button class="transcription-tab active" id="transcription-tab-btn" role="tab" aria-selected="true">Transcription</button>
+            <button class="transcription-tab" id="history-tab-btn" role="tab" aria-selected="false">History</button>
+          </div>
           <div class="transcription-actions">
             <button class="action-btn hidden" id="ai-undo-btn" title="Undo AI action">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -218,9 +221,19 @@
                 <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
               </svg>
             </button>
+            <button class="action-btn hidden" id="clear-history-btn" title="Clear history">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+              </svg>
+            </button>
           </div>
         </div>
         <div class="transcription-text" id="transcription-text" contenteditable="true" data-placeholder="Your transcription will appear here..."></div>
+        <div class="history-text hidden" id="history-text">
+          <div class="history-empty" id="history-empty">No transcription history yet.</div>
+          <div class="history-list" id="history-list"></div>
+        </div>
         
         <!-- Custom AI Prompt Input (Hidden by default) -->
         <div class="custom-prompt-container hidden" id="custom-prompt-container">

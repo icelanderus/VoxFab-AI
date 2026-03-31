@@ -503,11 +503,33 @@ html.platform-darwin .title-bar {
   justify-content: space-between;
 }
 
-.transcription-label {
+.transcription-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transcription-tab {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--text-dim);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.transcription-tab:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.transcription-tab.active {
+  color: var(--accent-cyan);
+  background: rgba(0, 212, 255, 0.12);
 }
 
 .transcription-actions {
@@ -572,6 +594,52 @@ html.platform-darwin .title-bar {
   opacity: 0.6;
   pointer-events: none;
   cursor: wait;
+}
+
+.history-text {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  overflow-y: auto;
+  min-height: 40px;
+  flex-shrink: 1;
+  -webkit-app-region: no-drag;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 11px;
+}
+
+.history-item {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.16);
+  padding: 8px 10px;
+}
+
+.history-item-index {
+  display: block;
+  color: var(--text-dim);
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.history-item-text {
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Transcription Footer (AI Actions) */
@@ -711,6 +779,19 @@ html.platform-darwin .title-bar {
   background: transparent;
 }
 .transcription-text::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+}
+
+.history-text::-webkit-scrollbar {
+  width: 4px;
+}
+
+.history-text::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-text::-webkit-scrollbar-thumb {
   background: var(--bg-tertiary);
   border-radius: 2px;
 }
