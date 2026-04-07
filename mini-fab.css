@@ -73,6 +73,37 @@ html, body {
   transition: opacity 0.2s ease;
 }
 
+/* Same spinner style as main window transcription loader. */
+.spinner-visual-container {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  border: none;
+}
+
+.rotating-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: conic-gradient(from 0deg, #00d4ff, #22d3ee, #6366f1, #8b5cf6, #a78bfa, #00d4ff);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 10px, #000 11px, #000 14px, transparent 15px);
+  mask: radial-gradient(circle closest-side, transparent 10px, #000 11px, #000 14px, transparent 15px);
+  animation: grspin 0.75s linear infinite;
+  position: relative;
+  z-index: 21;
+}
+
+@keyframes grspin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .hidden {
   display: none !important;
 }

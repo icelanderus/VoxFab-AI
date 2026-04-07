@@ -1,9 +1,11 @@
 const fabCircle = document.getElementById('fab-circle');
 const micIcon = document.getElementById('mic-icon');
 const stopIcon = document.getElementById('stop-icon');
+const fabSpinner = document.getElementById('fab-spinner');
 const expandBtn = document.getElementById('expand-btn');
 
 let isRecording = false;
+let isProcessing = false;
 let isDragging = false;
 let startPos = { x: 0, y: 0 };
 let startTime = 0;
@@ -13,6 +15,11 @@ let lastShownTime = Date.now();
 window.electronAPI.getRecordingState().then(recording => {
   updateRecordingUI(recording);
 });
+if (typeof window.electronAPI.getProcessingState === 'function') {
+  window.electronAPI.getProcessingState().then(processing => {
+    updateProcessingUI(!!processing);
+  });
+}
 
 // Update lastShownTime whenever we receive the sync event
 window.electronAPI.onToggleRecording(() => {
@@ -65,20 +72,37 @@ if (expandBtn) {
 
 // Toggle recording on click (if not dragging)
 async function handleFabClick() {
+  if (isProcessing) return;
   await window.electronAPI.toggleRecordingMain();
 }
 
 // Update UI based on recording state
 function updateRecordingUI(recording) {
   isRecording = recording;
+  if (isProcessing) return;
   if (isRecording) {
     fabCircle.classList.add('recording');
     micIcon.classList.add('hidden');
     stopIcon.classList.remove('hidden');
+    if (fabSpinner) fabSpinner.classList.add('hidden');
   } else {
     fabCircle.classList.remove('recording');
     micIcon.classList.remove('hidden');
     stopIcon.classList.add('hidden');
+    if (fabSpinner) fabSpinner.classList.add('hidden');
+  }
+}
+
+function updateProcessingUI(processing) {
+  isProcessing = !!processing;
+  if (isProcessing) {
+    fabCircle.classList.remove('recording');
+    micIcon.classList.add('hidden');
+    stopIcon.classList.add('hidden');
+    if (fabSpinner) fabSpinner.classList.remove('hidden');
+  } else {
+    if (fabSpinner) fabSpinner.classList.add('hidden');
+    updateRecordingUI(isRecording);
   }
 }
 
@@ -86,4 +110,9 @@ function updateRecordingUI(recording) {
 window.electronAPI.onToggleRecording((recording) => {
   updateRecordingUI(recording);
 });
+if (typeof window.electronAPI.onProcessingState === 'function') {
+  window.electronAPI.onProcessingState((processing) => {
+    updateProcessingUI(processing);
+  });
+}
 

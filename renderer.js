@@ -112,6 +112,7 @@ const elements = {
   aiSummaryBtn: document.getElementById('ai-summary-btn'),
   aiReplyBtn: document.getElementById('ai-reply-btn'),
   aiShortenBtn: document.getElementById('ai-shorten-btn'),
+  aiRephraseBtn: document.getElementById('ai-rephrase-btn'),
   aiExpandBtn: document.getElementById('ai-expand-btn'),
   aiUndoBtn: document.getElementById('ai-undo-btn'),
   aiCustomBtn: document.getElementById('ai-custom-btn'),
@@ -168,6 +169,9 @@ function renderHotkeyHint() {
 // ============================================
 async function init() {
   await loadSettings();
+  if (typeof window.electronAPI.setProcessingState === 'function') {
+    window.electronAPI.setProcessingState(false);
+  }
   renderHistoryList();
   setActiveTextTab('transcription');
   setupEventListeners();
@@ -369,6 +373,7 @@ function setupEventListeners() {
   elements.aiSummaryBtn.addEventListener('click', () => performAIAction('summary'));
   elements.aiReplyBtn.addEventListener('click', () => performAIAction('reply'));
   elements.aiShortenBtn.addEventListener('click', () => performAIAction('shorten'));
+  if (elements.aiRephraseBtn) elements.aiRephraseBtn.addEventListener('click', () => performAIAction('rephrase'));
   elements.aiExpandBtn.addEventListener('click', () => performAIAction('expand'));
   elements.aiUndoBtn.addEventListener('click', undoAIAction);
   
@@ -1144,6 +1149,9 @@ function setupAudioVisualization(stream, opts = {}) {
 async function processAudio(audioBlob) {
   state.isProcessing = true;
   setStatus('processing', 'Transcribing…');
+  if (typeof window.electronAPI.setProcessingState === 'function') {
+    window.electronAPI.setProcessingState(true);
+  }
 
   try {
     if (!audioBlob || audioBlob.size < 1200) {
@@ -1214,6 +1222,9 @@ async function processAudio(audioBlob) {
     showToast(error.message || 'Transcription failed', 'error');
   } finally {
     state.isProcessing = false;
+    if (typeof window.electronAPI.setProcessingState === 'function') {
+      window.electronAPI.setProcessingState(false);
+    }
   }
 }
 
@@ -1650,6 +1661,7 @@ function updateAiToolbarVisibility() {
   if (elements.aiSummaryBtn) elements.aiSummaryBtn.classList.toggle('hidden', !hasText);
   if (elements.aiReplyBtn) elements.aiReplyBtn.classList.toggle('hidden', !hasText);
   if (elements.aiShortenBtn) elements.aiShortenBtn.classList.toggle('hidden', !hasText);
+  if (elements.aiRephraseBtn) elements.aiRephraseBtn.classList.toggle('hidden', !hasText);
   if (elements.aiExpandBtn) elements.aiExpandBtn.classList.toggle('hidden', !hasText);
   if (elements.aiCustomBtn) elements.aiCustomBtn.classList.toggle('hidden', !hasText);
   
@@ -1685,6 +1697,7 @@ async function performAIAction(actionType) {
     summary: "Create a very concise summary of the following text using bullet points if appropriate. Return ONLY the summary.",
     reply: "Draft a helpful, polite, and concise reply to the following message. Adapt to the tone of the message. Return ONLY the reply text.",
     shorten: "Shorten the following text significantly while keeping the core message and all important facts. Return ONLY the shortened text.",
+    rephrase: "Rephrase the following text to sound natural and clear while preserving the original meaning and tone. Return ONLY the rephrased text.",
     expand: "Expand the following text by adding more detail and professional polish while maintaining the original intent. Return ONLY the expanded text.",
     custom: elements.customPromptInput.value.trim()
   };

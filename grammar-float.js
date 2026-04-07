@@ -24,6 +24,12 @@ const ACTION_DEFS = [
     svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2"/><path d="m19 3-1 2"/><path d="m5 21 1-2"/><path d="m19 21-1-2"/></svg>'
   },
   {
+    type: 'rephrase',
+    id: 'ai-rephrase-btn',
+    title: 'Rephrase',
+    svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h12"/><path d="M4 12h9"/><path d="M4 17h8"/><polyline points="15 17 18 20 22 14"/></svg>'
+  },
+  {
     type: 'professional',
     id: 'ai-formal-btn',
     title: 'Professional',

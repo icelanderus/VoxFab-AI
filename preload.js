@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
   setRecordingState: (state) => ipcRenderer.invoke('set-recording-state', state),
+  setProcessingState: (state) => ipcRenderer.invoke('set-processing-state', state),
+  getProcessingState: () => ipcRenderer.invoke('get-processing-state'),
   captureSelection: () => ipcRenderer.invoke('capture-selection'),
   openWritingAssistant: () => ipcRenderer.invoke('open-writing-assistant'),
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
@@ -34,6 +36,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Events from main process
   onToggleRecording: (callback) => {
     ipcRenderer.on('toggle-recording', (event, isRecording) => callback(isRecording));
+  },
+  onProcessingState: (callback) => {
+    ipcRenderer.on('processing-state', (_event, isProcessing) => callback(isProcessing));
   },
   onTriggerAnalyze: (callback) => {
     ipcRenderer.on('trigger-analyze', () => callback());

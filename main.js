@@ -80,6 +80,7 @@ let aboutWindow = null;
 let grammarLoaderWindow = null;
 let tray = null;
 let isRecording = false;
+let isProcessing = false;
 let miniFabWindow = null;
 
 let grammarClipboardIgnoreUntil = 0;
@@ -426,6 +427,7 @@ ipcMain.handle('enter-mini-mode', () => {
     miniFabWindow.show();
     // Immediate sync of recording state to the FAB
     miniFabWindow.webContents.send('toggle-recording', isRecording);
+    miniFabWindow.webContents.send('processing-state', isProcessing);
   }
   return true;
 });
@@ -1112,6 +1114,8 @@ const GRAMMAR_AI_PROMPTS = {
     'Draft a helpful, polite, and concise reply to the following message. Adapt to the tone of the message. Return ONLY the reply text.',
   shorten:
     'Shorten the following text significantly while keeping the core message and all important facts. Return ONLY the shortened text.',
+  rephrase:
+    'Rephrase the following text to sound natural and clear while preserving the original meaning and tone. Return ONLY the rephrased text.',
   expand:
     'Expand the following text by adding more detail and professional polish while maintaining the original intent. Return ONLY the expanded text.'
 };
@@ -1266,6 +1270,20 @@ ipcMain.handle('close-window', () => {
 
 ipcMain.handle('set-recording-state', (event, s) => {
   isRecording = s;
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    miniFabWindow.webContents.send('toggle-recording', isRecording);
+  }
+});
+
+ipcMain.handle('set-processing-state', (_event, s) => {
+  isProcessing = !!s;
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    miniFabWindow.webContents.send('processing-state', isProcessing);
+  }
+});
+
+ipcMain.handle('get-processing-state', () => {
+  return isProcessing;
 });
 
 ipcMain.handle('is-accessibility-trusted', () => {
