@@ -1,6 +1,6 @@
 {
   "name": "my-tts-app",
-  "version": "1.2.1",
+  "version": "1.3.1",
   "description": "System-wide voice-to-text desktop app",
   "main": "main.js",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "build": {
     "appId": "com.personal.voice-to-text",
-    "productName": "VibeType AI",
+    "productName": "VibeTypeAI",
     "publish": null,
     "mac": {
       "target": [
@@ -21,11 +21,7 @@
       "category": "public.app-category.productivity"
     },
     "win": {
-      "target": [
-        "zip",
-        "portable"
-      ],
-      "icon": "assets/icon.png",
+      "target": ["zip", "portable"],
       "sign": null
     },
     "asar": true,
@@ -35,7 +31,14 @@
     ],
     "files": [
       "**/*",
-      "!node_modules/.cache/**"
+      "!node_modules/.cache/**",
+      "!dist",
+      "!Voice To Text-win32-x64",
+      "!*.zip",
+      "!*.lnk",
+      "!*.bat",
+      "!*.vbs",
+      "!.git"
     ]
   },
   "keywords": [
