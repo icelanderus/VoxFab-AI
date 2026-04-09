@@ -8,6 +8,7 @@ const {
   nativeImage,
   screen,
   clipboard,
+  desktopCapturer,
   systemPreferences,
   dialog,
   net,
@@ -16,6 +17,7 @@ const {
 const { keyboard, Key, sleep } = require('@nut-tree-fork/nut-js');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 keyboard.config.autoDelayMs = 50;
 
@@ -82,6 +84,9 @@ let tray = null;
 let isRecording = false;
 let isProcessing = false;
 let miniFabWindow = null;
+let regionPickerWindow = null;
+let regionOcrFlowResolve = null;
+let regionOcrState = null;
 
 let grammarClipboardIgnoreUntil = 0;
 /** Last clipboard text seen by the watcher (change detection between polls). */
@@ -494,9 +499,8 @@ function snapshotFrontmostPasteTarget() {
 
 ipcMain.handle('capture-selection', async () => {
   markGrammarClipboardIgnore(3200);
-  const isMac = process.platform === 'darwin';
-  const originalText = clipboard.readText();
-  
+  const snapshot = clipboardSnapshot();
+
   try {
     const isWin = process.platform === 'win32';
     const handle = lastExternalWindowHandle || (isWin ? '0' : '');
@@ -510,31 +514,213 @@ ipcMain.handle('capture-selection', async () => {
         });
       });
     } else {
-       // Mac implementation (simplified for now)
-       exec(`osascript -e 'tell application "${handle}" to activate' -e 'tell application "System Events" to keystroke "c" using command down'`);
-       await new Promise(r => setTimeout(r, 400));
+      exec(
+        `osascript -e 'tell application "${handle}" to activate' -e 'tell application "System Events" to keystroke "c" using command down'`
+      );
+      await new Promise((r) => setTimeout(r, 400));
     }
-    
-    const capturedText = clipboard.readText();
-    
-    // Restore original clipboard
-    clipboard.writeText(originalText);
+
+    const resolved = await resolveClipboardAfterCopy(snapshot);
+    clipboardRestoreSnapshot(snapshot);
     try {
-      prevClipboardTick = (originalText || '').trim();
+      prevClipboardTick = (snapshot.text || '').trim();
     } catch (_) {}
-    
+
+    const ctx = lastExternalWindowName || lastExternalWindowHandle;
+    if (resolved.text && resolved.text.trim()) {
+      return {
+        text: resolved.text.trim(),
+        windowContext: ctx,
+        source: resolved.source
+      };
+    }
     return {
-      text: capturedText,
-      windowContext: lastExternalWindowName || lastExternalWindowHandle
+      text: '',
+      windowContext: ctx,
+      source: resolved.source,
+      errorKey: resolved.errorKey || 'empty'
     };
   } catch (error) {
     console.error('Capture selection failed:', error);
-    clipboard.writeText(originalText);
+    clipboardRestoreSnapshot(snapshot);
     try {
-      prevClipboardTick = (originalText || '').trim();
+      prevClipboardTick = (snapshot.text || '').trim();
     } catch (_) {}
-    return null;
+    return { text: '', windowContext: null, source: 'none', errorKey: 'exception' };
   }
+});
+
+ipcMain.handle('region-ocr', async () => {
+  if (regionOcrFlowResolve || regionOcrState || regionPickerWindow) {
+    return { ok: false, errorKey: 'busy' };
+  }
+  if (!store.get('openaiApiKey')) {
+    return { ok: false, errorKey: 'no-api-key' };
+  }
+
+  const point = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(point);
+  const bounds = display.bounds;
+  const sf = display.scaleFactor || 1;
+  const tw = Math.min(4096, Math.max(1, Math.round(bounds.width * sf)));
+  const th = Math.min(4096, Math.max(1, Math.round(bounds.height * sf)));
+
+  let sources;
+  try {
+    sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: tw, height: th }
+    });
+  } catch (e) {
+    console.error('desktopCapturer.getSources:', e);
+    return { ok: false, errorKey: 'capture-failed' };
+  }
+
+  if (!sources || !sources.length) {
+    return { ok: false, errorKey: 'capture-failed' };
+  }
+
+  const idStr = String(display.id);
+  let source = sources.find((s) => s.display_id === idStr);
+  if (!source) {
+    const all = screen.getAllDisplays();
+    const di = all.findIndex((d) => d.id === display.id);
+    if (di >= 0 && sources[di]) source = sources[di];
+  }
+  if (!source) source = sources[0];
+
+  const fullImage = source.thumbnail;
+  if (!fullImage || fullImage.isEmpty()) {
+    return { ok: false, errorKey: 'capture-failed' };
+  }
+
+  const tmpPath = path.join(app.getPath('temp'), `vibetype-region-${Date.now()}.png`);
+  try {
+    fs.writeFileSync(tmpPath, fullImage.toPNG());
+  } catch (e) {
+    console.error('region temp png:', e);
+    return { ok: false, errorKey: 'capture-failed' };
+  }
+
+  return new Promise((resolve) => {
+    regionOcrFlowResolve = resolve;
+    regionOcrState = { fullImage, tmpPath };
+
+    const win = new BrowserWindow({
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      useContentSize: true,
+      frame: false,
+      transparent: false,
+      backgroundColor: '#0f172a',
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      fullscreenable: false,
+      hasShadow: false,
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'region-picker-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false
+      }
+    });
+
+    if (process.platform === 'darwin') {
+      win.setAlwaysOnTop(true, 'screen-saver');
+    } else {
+      win.setAlwaysOnTop(true, 'floating');
+    }
+
+    regionPickerWindow = win;
+
+    win.once('ready-to-show', () => {
+      win.show();
+      win.focus();
+    });
+
+    win.on('closed', () => {
+      regionPickerWindow = null;
+      try {
+        if (regionOcrState && regionOcrState.tmpPath && fs.existsSync(regionOcrState.tmpPath)) {
+          fs.unlinkSync(regionOcrState.tmpPath);
+        }
+      } catch (_) {}
+      if (regionOcrFlowResolve) {
+        regionOcrFlowResolve({ ok: false, errorKey: 'cancelled' });
+        regionOcrFlowResolve = null;
+      }
+      regionOcrState = null;
+    });
+
+    win.loadFile(path.join(__dirname, 'region-picker.html'));
+
+    win.webContents.once('did-finish-load', () => {
+      const sz = fullImage.getSize();
+      win.webContents.send('region-picker-bootstrap', {
+        imageUrl: pathToFileURL(tmpPath).href,
+        imgWidth: sz.width,
+        imgHeight: sz.height
+      });
+    });
+  });
+});
+
+ipcMain.handle('region-ocr-commit', async (_event, rect) => {
+  const st = regionOcrState;
+  if (!st || !st.fullImage) return { ok: false };
+
+  const cropped = clampAndCropNativeImage(st.fullImage, rect);
+  if (!cropped) {
+    return { ok: false, errorKey: 'selection-too-small' };
+  }
+
+  const ocr = await extractTextFromNativeImage(cropped);
+  const userResolve = regionOcrFlowResolve;
+  regionOcrFlowResolve = null;
+  regionOcrState = null;
+
+  try {
+    if (st.tmpPath && fs.existsSync(st.tmpPath)) fs.unlinkSync(st.tmpPath);
+  } catch (_) {}
+
+  if (userResolve) {
+    userResolve({
+      ok: ocr.ok && !!String(ocr.text || '').trim(),
+      text: String(ocr.text || '').trim(),
+      errorKey: !ocr.ok ? 'ocr-failed' : !String(ocr.text || '').trim() ? 'ocr-no-text' : undefined
+    });
+  }
+
+  if (regionPickerWindow && !regionPickerWindow.isDestroyed()) {
+    regionPickerWindow.close();
+  }
+
+  return { ok: true };
+});
+
+ipcMain.handle('region-ocr-abort', async () => {
+  const st = regionOcrState;
+  try {
+    if (st && st.tmpPath && fs.existsSync(st.tmpPath)) fs.unlinkSync(st.tmpPath);
+  } catch (_) {}
+
+  const userResolve = regionOcrFlowResolve;
+  regionOcrFlowResolve = null;
+  regionOcrState = null;
+
+  if (userResolve) {
+    userResolve({ ok: false, errorKey: 'cancelled' });
+  }
+
+  if (regionPickerWindow && !regionPickerWindow.isDestroyed()) {
+    regionPickerWindow.close();
+  }
+
+  return { ok: true };
 });
 
 // Start a persistent window monitor process (Windows) or poll frontmost app (macOS — reliable inside packaged .app).
@@ -616,6 +802,132 @@ function openAiRequest(url, init) {
   return net.fetch(url, init);
 }
 
+const VISION_IMAGE_MAX_EDGE = 2048;
+
+function clipboardSnapshot() {
+  return {
+    text: clipboard.readText(),
+    image: clipboard.readImage()
+  };
+}
+
+function clipboardRestoreSnapshot(snap) {
+  if (!snap) return;
+  const img = snap.image;
+  if (img && !img.isEmpty()) {
+    clipboard.write({ text: snap.text || '', image: img });
+  } else {
+    clipboard.writeText(snap.text || '');
+  }
+}
+
+/** OCR via gpt-4o-mini vision (main process). */
+async function extractTextFromNativeImage(img) {
+  const apiKey = store.get('openaiApiKey');
+  if (!apiKey) {
+    return { ok: false, error: 'no-api-key', text: '' };
+  }
+  if (!img || img.isEmpty()) {
+    return { ok: false, error: 'no-image', text: '' };
+  }
+  let work = img;
+  const { width, height } = work.getSize();
+  if (width > VISION_IMAGE_MAX_EDGE || height > VISION_IMAGE_MAX_EDGE) {
+    const s = VISION_IMAGE_MAX_EDGE / Math.max(width, height);
+    work = work.resize({
+      width: Math.max(1, Math.round(width * s)),
+      height: Math.max(1, Math.round(height * s))
+    });
+  }
+  const png = work.toPNG();
+  if (!png || png.length === 0) {
+    return { ok: false, error: 'bad-image', text: '' };
+  }
+  if (png.length > 12 * 1024 * 1024) {
+    return { ok: false, error: 'Image too large for OCR.', text: '' };
+  }
+  const base64 = Buffer.from(png).toString('base64');
+  try {
+    const response = await openAiRequest('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  'Extract all readable text from this image. Keep line breaks where they appear in the image. Reply with ONLY the extracted text — no markdown, no quotes, no explanation. If there is no text at all, reply exactly with: (none)'
+              },
+              {
+                type: 'image_url',
+                image_url: { url: `data:image/png;base64,${base64}` }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4096,
+        temperature: 0.1
+      })
+    });
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      return {
+        ok: false,
+        error: errBody.error?.message || 'Vision request failed',
+        text: ''
+      };
+    }
+    const data = await response.json();
+    let t = (data.choices?.[0]?.message?.content || '').trim();
+    if (/^\(none\)$/i.test(t)) t = '';
+    return { ok: true, text: t, error: '' };
+  } catch (e) {
+    return { ok: false, error: friendlyOpenAiNetworkError(e), text: '' };
+  }
+}
+
+/**
+ * After simulated Cmd+C / copy: prefer new plain text; else OCR if clipboard has an image.
+ * @returns {{ text: string, source: 'text'|'image'|'none', errorKey?: string }}
+ */
+async function resolveClipboardAfterCopy(snapshot) {
+  const origTrim = (snapshot.text || '').trim();
+  const newTrim = clipboard.readText().trim();
+  const newImg = clipboard.readImage();
+
+  if (newTrim.length > 0 && newTrim !== origTrim) {
+    return { text: newTrim, source: 'text' };
+  }
+
+  if (!newImg.isEmpty()) {
+    if (!store.get('openaiApiKey')) {
+      return { text: '', source: 'none', errorKey: 'no-api-key-image' };
+    }
+    const r = await extractTextFromNativeImage(newImg);
+    if (r.ok && r.text && r.text.trim()) {
+      return { text: r.text.trim(), source: 'image' };
+    }
+    return {
+      text: '',
+      source: 'none',
+      errorKey: !r.ok ? 'ocr-failed' : 'ocr-no-text'
+    };
+  }
+
+  if (newTrim.length > 0) {
+    return { text: newTrim, source: 'text' };
+  }
+
+  return { text: '', source: 'none', errorKey: 'empty' };
+}
+
 /** User-visible copy when fetch() to OpenAI fails (Node often reports only "fetch failed"). */
 function friendlyOpenAiNetworkError(err, fallback = 'Request failed.') {
   if (!err) return fallback;
@@ -632,6 +944,33 @@ function friendlyOpenAiNetworkError(err, fallback = 'Request failed.') {
     return "Can't reach OpenAI. Check your internet, VPN or firewall, and that api.openai.com isn't blocked.";
   }
   return msg || fallback;
+}
+
+function clampAndCropNativeImage(nativeImg, rect) {
+  if (!nativeImg || nativeImg.isEmpty()) return null;
+  const { width: iw, height: ih } = nativeImg.getSize();
+  const x0 = Math.min(rect.x, rect.x + rect.width);
+  const y0 = Math.min(rect.y, rect.y + rect.height);
+  const x1 = Math.max(rect.x, rect.x + rect.width);
+  const y1 = Math.max(rect.y, rect.y + rect.height);
+  const x = Math.max(0, Math.floor(x0));
+  const y = Math.max(0, Math.floor(y0));
+  let w = Math.min(iw - x, Math.ceil(x1 - x0));
+  let h = Math.min(ih - y, Math.ceil(y1 - y0));
+  if (w < 12 || h < 12) return null;
+  try {
+    return nativeImg.crop({ x, y, width: w, height: h });
+  } catch (e) {
+    console.error('crop failed:', e);
+    return null;
+  }
+}
+
+function closeRegionPickerWindow() {
+  if (regionPickerWindow && !regionPickerWindow.isDestroyed()) {
+    regionPickerWindow.close();
+  }
+  regionPickerWindow = null;
 }
 
 async function quickGrammarScan(text) {
@@ -691,7 +1030,7 @@ async function quickGrammarScan(text) {
 async function captureSelectionTextForFloat() {
   markGrammarClipboardIgnore(3200);
   const isWin = process.platform === 'win32';
-  const originalText = clipboard.readText();
+  const snapshot = clipboardSnapshot();
   const handle = lastExternalWindowHandle || (isWin ? '0' : '');
   if (!isWin && (!handle || handle === '')) {
     return { text: '', err: 'no-target' };
@@ -712,16 +1051,21 @@ async function captureSelectionTextForFloat() {
       if (!r.ok) return { text: '', err: 'copy-failed' };
       await new Promise((r2) => setTimeout(r2, 220));
     }
-    const captured = clipboard.readText();
-    clipboard.writeText(originalText);
+    const resolved = await resolveClipboardAfterCopy(snapshot);
+    clipboardRestoreSnapshot(snapshot);
     try {
-      prevClipboardTick = (originalText || '').trim();
+      prevClipboardTick = (snapshot.text || '').trim();
     } catch (_) {}
-    return { text: captured || '' };
+    return {
+      text: resolved.text || '',
+      err: resolved.text && resolved.text.trim() ? undefined : resolved.errorKey || 'empty',
+      errorKey: resolved.errorKey,
+      source: resolved.source
+    };
   } catch (e) {
-    clipboard.writeText(originalText);
+    clipboardRestoreSnapshot(snapshot);
     try {
-      prevClipboardTick = (originalText || '').trim();
+      prevClipboardTick = (snapshot.text || '').trim();
     } catch (_) {}
     return { text: '', err: String(e.message || e) };
   }
@@ -946,16 +1290,24 @@ async function openGrammarFloatFromShortcut() {
   const point = screen.getCursorScreenPoint();
   showGrammarLoaderAt(point);
   try {
-    const { text, err } = await captureSelectionTextForFloat();
+    const { text, err, errorKey } = await captureSelectionTextForFloat();
     if (!text || !text.trim()) {
       if (mainWindow && !mainWindow.isDestroyed()) {
+        let message =
+          err === 'no-target'
+            ? 'Click the app that has your selection, then try the shortcut again.'
+            : process.platform === 'darwin'
+              ? 'Highlight text or an image in the other app, then press ⌘⇧E (or Ctrl⇧E).'
+              : 'Highlight text or an image in the other app, then copy (Ctrl+C) or press Ctrl+Shift+E.';
+        if (errorKey === 'no-api-key-image') {
+          message = 'Add your OpenAI API key in Settings to extract text from images.';
+        } else if (errorKey === 'ocr-no-text') {
+          message = 'No readable text found in the image.';
+        } else if (errorKey === 'ocr-failed') {
+          message = 'Could not read text from the image. Try again or use sharper capture.';
+        }
         mainWindow.webContents.send('app-toast', {
-          message:
-            err === 'no-target'
-              ? 'Click the app that has your selection, then try the shortcut again.'
-              : process.platform === 'darwin'
-                ? 'Highlight text in the other app, then press ⌘⇧E (or Ctrl⇧E).'
-                : 'Highlight text in the other app, then copy (Ctrl+C) or press Ctrl+Shift+E.',
+          message,
           type: 'warning'
         });
       }

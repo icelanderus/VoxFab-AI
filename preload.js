@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setProcessingState: (state) => ipcRenderer.invoke('set-processing-state', state),
   getProcessingState: () => ipcRenderer.invoke('get-processing-state'),
   captureSelection: () => ipcRenderer.invoke('capture-selection'),
+  /** Full-screen region snip → OpenAI vision OCR → resolves when done or cancelled */
+  startRegionOcr: () => ipcRenderer.invoke('region-ocr'),
   openWritingAssistant: () => ipcRenderer.invoke('open-writing-assistant'),
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
   enterMiniMode: () => ipcRenderer.invoke('enter-mini-mode'),

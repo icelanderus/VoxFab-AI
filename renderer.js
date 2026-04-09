@@ -77,6 +77,7 @@ const elements = {
   copyBtn: document.getElementById('copy-btn'),
   typeBtn: document.getElementById('type-btn'),
   analyzeBtn: document.getElementById('analyze-btn'),
+  regionOcrBtn: document.getElementById('region-ocr-btn'),
   writingAssistantBtn: document.getElementById('writing-assistant-btn'),
   clearBtn: document.getElementById('clear-btn'),
   clearHistoryBtn: document.getElementById('clear-history-btn'),
@@ -293,6 +294,9 @@ function setupEventListeners() {
   if (elements.copyBtn) elements.copyBtn.addEventListener('click', copyTranscription);
   if (elements.typeBtn) elements.typeBtn.addEventListener('click', typeTranscription);
   if (elements.analyzeBtn) elements.analyzeBtn.addEventListener('click', handleAnalyzeClick);
+  if (elements.regionOcrBtn) {
+    elements.regionOcrBtn.addEventListener('click', () => startRegionOcrFromScreen());
+  }
   if (elements.writingAssistantBtn) {
     elements.writingAssistantBtn.addEventListener('click', async () => {
       try {
@@ -416,6 +420,66 @@ async function handleAnalyzeClick() {
   }
 }
 
+async function startRegionOcrFromScreen() {
+  if (state.isProcessing) return;
+  if (!state.settings.openaiApiKey) {
+    showToast('Add your OpenAI API key in Settings to read text from the screen.', 'error');
+    toggleSettings();
+    return;
+  }
+
+  state.isProcessing = true;
+  setStatus('processing', 'Select area on screen…');
+
+  try {
+    const result = await window.electronAPI.startRegionOcr();
+    if (!result || result.errorKey === 'busy') {
+      showToast('Screen capture is already open.', 'warning');
+      return;
+    }
+    if (result.errorKey === 'no-api-key') {
+      showToast('Add your OpenAI API key in Settings.', 'error');
+      toggleSettings();
+      return;
+    }
+    if (result.errorKey === 'capture-failed') {
+      showToast(
+        window.electronAPI.platform === 'darwin'
+          ? 'Could not capture the screen. Grant Screen Recording for VibeType AI in System Settings → Privacy.'
+          : 'Could not capture the screen. Check permissions and try again.',
+        'error'
+      );
+      return;
+    }
+    if (result.errorKey === 'cancelled') {
+      setStatus('ready', 'Cancelled');
+      return;
+    }
+    if (result.ok && result.text && result.text.trim()) {
+      state.capturedContext = 'screen region';
+      elements.transcriptionText.textContent = result.text.trim();
+      setStatus('ready', 'Text from screen');
+      updateAiToolbarVisibility();
+      showToast('Text extracted from screen selection', 'success');
+      return;
+    }
+    setStatus('ready', 'No text found');
+    if (result.errorKey === 'ocr-no-text') {
+      showToast('No readable text in that area.', 'warning');
+    } else if (result.errorKey === 'ocr-failed') {
+      showToast('Could not read text. Try again or select a clearer area.', 'error');
+    } else {
+      showToast('No text extracted.', 'warning');
+    }
+  } catch (e) {
+    console.error('Region OCR:', e);
+    setStatus('error', 'Screen OCR failed');
+    showToast(e.message || 'Screen OCR failed', 'error');
+  } finally {
+    state.isProcessing = false;
+  }
+}
+
 async function captureSelectionFromApp() {
   if (state.isProcessing) return;
   
@@ -425,20 +489,33 @@ async function captureSelectionFromApp() {
   try {
     // Capture text from focused window
     const result = await window.electronAPI.captureSelection();
-    
+
     if (!result || !result.text || !result.text.trim()) {
-      setStatus('ready', 'No text selected');
-      showToast('Please highlight some text in another app first', 'warning');
+      setStatus('ready', 'Nothing captured');
+      const ek = result && result.errorKey;
+      let msg = 'Highlight text or an image in another app, then try again.';
+      if (ek === 'no-api-key-image') {
+        msg = 'Add your OpenAI API key in Settings to extract text from images.';
+      } else if (ek === 'ocr-no-text') {
+        msg = 'No readable text found in that image.';
+      } else if (ek === 'ocr-failed') {
+        msg = 'Could not read text from the image. Try again.';
+      }
+      showToast(msg, 'warning');
       return;
     }
-    
-    const { text, windowContext } = result;
-    state.capturedContext = windowContext; // Store for later analysis
-    
+
+    const { text, windowContext, source } = result;
+    state.capturedContext = windowContext;
+
     elements.transcriptionText.textContent = text.trim();
-    setStatus('ready', 'Text captured');
+    setStatus('ready', source === 'image' ? 'Text from image' : 'Text captured');
     updateAiToolbarVisibility();
-    showToast(`Text captured from ${windowContext || 'other app'}`, 'success');
+    const from =
+      source === 'image'
+        ? 'image (AI)'
+        : windowContext || 'other app';
+    showToast(`Captured from ${from}`, 'success');
   } catch (error) {
     console.error('Capture error:', error);
     setStatus('error', 'Capture failed');
@@ -1647,7 +1724,7 @@ function updateAiToolbarVisibility() {
     elements.analyzeBtn.title = 'AI Analyze (Smart Context)';
   } else {
     elements.analyzeBtn.innerHTML = ICONS.capture;
-    elements.analyzeBtn.title = 'Capture text from any highlight (Slack/Mail/etc.)';
+    elements.analyzeBtn.title = 'Capture highlighted text or image (OCR) from another app';
     state.capturedContext = null; // Reset context if cleared
   }
 
@@ -1664,6 +1741,7 @@ function updateAiToolbarVisibility() {
   if (elements.aiRephraseBtn) elements.aiRephraseBtn.classList.toggle('hidden', !hasText);
   if (elements.aiExpandBtn) elements.aiExpandBtn.classList.toggle('hidden', !hasText);
   if (elements.aiCustomBtn) elements.aiCustomBtn.classList.toggle('hidden', !hasText);
+  if (elements.regionOcrBtn) elements.regionOcrBtn.classList.remove('hidden');
   
   // Show undo button if we have previous text
   if (elements.aiUndoBtn) {

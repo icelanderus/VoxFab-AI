@@ -244,10 +244,16 @@
         <!-- AI Smart Actions Footer (Icon-only, matching header style) -->
         <div class="transcription-footer" id="ai-actions-toolbar">
           <div class="ai-actions-group">
-            <button class="action-btn ai-btn primary" id="analyze-btn" title="Capture text from any highlight (Slack/Mail/etc.)">
+            <button class="action-btn ai-btn primary" id="analyze-btn" title="Capture highlighted text or image (OCR) from another app">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              </svg>
+            </button>
+            <button type="button" class="action-btn ai-btn" id="region-ocr-btn" title="Select area on screen — extract text (AI)" aria-label="Screen region text">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4zM16 16h4v4h-4z"/>
+                <path d="M9 9h6v6H9z" stroke-dasharray="2 1"/>
               </svg>
             </button>
             <button type="button" class="action-btn ai-btn" id="writing-assistant-btn" title="Writing assistant" aria-label="Writing assistant">
@@ -474,7 +480,7 @@
         <div class="setting-group">
           <label class="setting-label">✨ Writing Assistant</label>
           <div class="setting-description">
-            Press <b>Ctrl + Shift + E</b> to open the Assistant (Mac: <b>⌘⇧E</b>) with text selected in another app. Use it to fix grammar, change tone, or summarize highlighted text. It can run a quick quality check, then actions like <b>fix &amp; polish</b>, <b>professional tone</b>, <b>summarize</b>, <b>draft reply</b>, <b>shorten</b>, or <b>expand</b>, plus a custom instruction — paste results back when you are done. Requires an <b>OpenAI API key</b> in Settings.
+            Use the <b>screen region</b> button (dashed square next to capture) to dim the screen, drag a rectangle over any area — text is read with AI and placed in the transcript. On Mac, allow <b>Screen Recording</b> for this app in System Settings → Privacy &amp; Security. Press <b>Ctrl + Shift + E</b> to open the Assistant (Mac: <b>⌘⇧E</b>) with text or an image selected in another app (images: text is extracted with AI). Use it to fix grammar, change tone, or summarize highlighted text. It can run a quick quality check, then actions like <b>fix &amp; polish</b>, <b>professional tone</b>, <b>summarize</b>, <b>draft reply</b>, <b>shorten</b>, or <b>expand</b>, plus a custom instruction — paste results back when you are done. Requires an <b>OpenAI API key</b> in Settings.
           </div>
         </div>
 
