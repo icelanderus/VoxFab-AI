@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('grammarAPI', {
     ipcRenderer.on('grammar-float-appearance', (_e, payload) => callback(payload));
   },
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  threeRephrases: (text) => ipcRenderer.invoke('grammar-float-three-rephrases', { text }),
+  threeFixPolish: (text) => ipcRenderer.invoke('grammar-float-three-fix-polish', { text }),
   runAiAction: (type, text, customInstruction) =>
     ipcRenderer.invoke('grammar-ai-action', { type, text, customInstruction }),
   applyPaste: (text) => ipcRenderer.invoke('type-text', text),

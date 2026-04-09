@@ -77,6 +77,7 @@ function setHintLine(text) {
   }
 }
 const actionsEl = document.getElementById('actions');
+const rephrasePicksEl = document.getElementById('rephrase-picks');
 const resultEl = document.getElementById('result');
 const applyRow = document.getElementById('apply-row');
 const applyPaste = document.getElementById('apply-paste');
@@ -171,6 +172,66 @@ function updateGrammarUndoButton() {
   if (u) u.classList.toggle('hidden', !grammarUndoAvailable());
 }
 
+function hideRephrasePicks() {
+  if (!rephrasePicksEl) return;
+  rephrasePicksEl.innerHTML = '';
+  rephrasePicksEl.style.display = 'none';
+}
+
+function selectRephraseOption(chosen) {
+  const text = String(chosen || '').trim();
+  if (!text) return;
+  hideRephrasePicks();
+  resultUndoPartner = lastResult;
+  lastResult = text;
+  resultEl.textContent = lastResult;
+  resultEl.classList.add('visible');
+  applyRow.style.display = 'flex';
+  updateGrammarUndoButton();
+  setHintLine('');
+  fitFloatToContent(350);
+}
+
+function showThreeOptionPicks(suggestions, labelText) {
+  if (!rephrasePicksEl) return;
+  rephrasePicksEl.innerHTML = '';
+
+  const label = document.createElement('p');
+  label.className = 'rephrase-picks-label';
+  label.textContent = labelText || 'Tap one of 3 options';
+  rephrasePicksEl.appendChild(label);
+
+  suggestions.forEach((s, i) => {
+    const text = String(s).trim();
+    if (!text) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'rephrase-option-btn';
+    btn.setAttribute('aria-label', `Option ${i + 1}`);
+    btn.textContent = text;
+    btn.title = text.length > 160 ? text : '';
+    btn.addEventListener('click', () => selectRephraseOption(text));
+    rephrasePicksEl.appendChild(btn);
+  });
+
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'rephrase-picks-cancel';
+  cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => {
+    hideRephrasePicks();
+    setHintLine('');
+    fitFloatToContent(400);
+  });
+  rephrasePicksEl.appendChild(cancel);
+
+  rephrasePicksEl.style.display = 'flex';
+  resultEl.textContent = '';
+  resultEl.classList.remove('visible');
+  applyRow.style.display = 'none';
+  fitFloatToContent(400);
+}
+
 function buildActionButtons() {
   actionsEl.innerHTML = '';
   for (const a of ACTION_DEFS) {
@@ -196,6 +257,7 @@ function buildActionButtons() {
 
 function undoFloatAiResult() {
   if (!grammarUndoAvailable()) return;
+  hideRephrasePicks();
   const a = lastResult;
   const b = resultUndoPartner;
   lastResult = b;
@@ -219,10 +281,11 @@ async function runAction(type) {
     return;
   }
   if (!selectedText.trim()) return;
+  hideRephrasePicks();
   const settings = await grammarAPI.getSettings();
   if (!settings.openaiApiKey) {
     setHintLine('Set OpenAI API key in VibeType AI → Settings.');
-    scheduleFit();
+    fitFloatToContent(350);
     return;
   }
   thinking.classList.remove('hidden');
@@ -230,6 +293,22 @@ async function runAction(type) {
     btn.disabled = true;
   });
   try {
+    if (type === 'fix') {
+      const res = await grammarAPI.threeFixPolish(selectedText);
+      if (!res.ok) throw new Error(res.error || 'Failed');
+      showThreeOptionPicks(res.suggestions || [], 'Tap one of 3 polished versions');
+      updateGrammarUndoButton();
+      return;
+    }
+
+    if (type === 'rephrase') {
+      const res = await grammarAPI.threeRephrases(selectedText);
+      if (!res.ok) throw new Error(res.error || 'Failed');
+      showThreeOptionPicks(res.suggestions || [], 'Tap one of 3 rephrasings');
+      updateGrammarUndoButton();
+      return;
+    }
+
     const res = await grammarAPI.runAiAction(type, selectedText);
     if (!res.ok) throw new Error(res.error || 'Failed');
     resultUndoPartner = lastResult;
@@ -240,6 +319,7 @@ async function runAction(type) {
     updateGrammarUndoButton();
   } catch (e) {
     setHintLine(e.message || 'AI failed');
+    hideRephrasePicks();
     resultEl.classList.remove('visible');
     applyRow.style.display = 'none';
   } finally {
@@ -268,13 +348,14 @@ applyPaste.addEventListener('click', async () => {
     grammarAPI.close();
   } else {
     setHintLine('Paste failed — copy manually or check Accessibility.');
-    scheduleFit();
+    fitFloatToContent(350);
   }
 });
 
 dismissResult.addEventListener('click', () => {
   lastResult = '';
   resultUndoPartner = '';
+  hideRephrasePicks();
   resultEl.classList.remove('visible');
   applyRow.style.display = 'none';
   updateGrammarUndoButton();
@@ -291,6 +372,7 @@ customIn.addEventListener('keydown', (e) => {
 customGo.addEventListener('click', async () => {
   const instr = customIn.value.trim();
   if (!instr || !selectedText.trim()) return;
+  hideRephrasePicks();
   thinking.classList.remove('hidden');
   try {
     const res = await grammarAPI.runAiAction('custom', selectedText, instr);
@@ -320,6 +402,7 @@ grammarAPI.onInit(async (payload) => {
   selectedText = payload.text || '';
   lastResult = '';
   resultUndoPartner = '';
+  hideRephrasePicks();
   resultEl.textContent = '';
   resultEl.classList.remove('visible');
   applyRow.style.display = 'none';

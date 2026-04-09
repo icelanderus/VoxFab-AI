@@ -1120,6 +1120,136 @@ const GRAMMAR_AI_PROMPTS = {
     'Expand the following text by adding more detail and professional polish while maintaining the original intent. Return ONLY the expanded text.'
 };
 
+/** Floating assistant: 3 blocks split by --- or by blank lines */
+function parseThreeModelSegments(raw) {
+  const text = String(raw || '').trim();
+  let parts = text
+    .split(/\r?\n\s*-{3,}\s*\r?\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (parts.length < 3) {
+    parts = text
+      .split(/\r?\n\r?\n+/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+  }
+  return parts.slice(0, 3);
+}
+
+ipcMain.handle('grammar-float-three-rephrases', async (_event, { text }) => {
+  const apiKey = store.get('openaiApiKey');
+  if (!apiKey) {
+    return { ok: false, error: 'Set OpenAI API key in VibeType AI settings.' };
+  }
+  const t = String(text || '').trim();
+  if (!t) {
+    return { ok: false, error: 'No text to transform.' };
+  }
+
+  const userContent =
+    'Give exactly 3 different rephrasings of the text. Same meaning and tone, different wording.\n\n' +
+    'Rules: output only the three texts. Between them put one line that contains only three dashes: ---\n' +
+    'No numbers, no labels, no markdown.\n\n' +
+    `Text:\n${t}`;
+
+  try {
+    const response = await openAiRequest('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a writing assistant. Follow the user format exactly. No preamble, no closing remarks.'
+          },
+          { role: 'user', content: userContent }
+        ],
+        temperature: 0.65
+      })
+    });
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      const msg = errBody.error?.message || 'AI request failed';
+      return { ok: false, error: msg };
+    }
+
+    const data = await response.json();
+    const rawContent = data.choices[0].message.content.trim();
+    const suggestions = parseThreeModelSegments(rawContent);
+    if (suggestions.length < 3) {
+      return { ok: false, error: 'Could not get 3 options. Try Rephrase again.' };
+    }
+    return { ok: true, suggestions };
+  } catch (e) {
+    console.error('grammar-float-three-rephrases:', e);
+    return { ok: false, error: friendlyOpenAiNetworkError(e, e.message || 'AI failed') };
+  }
+});
+
+ipcMain.handle('grammar-float-three-fix-polish', async (_event, { text }) => {
+  const apiKey = store.get('openaiApiKey');
+  if (!apiKey) {
+    return { ok: false, error: 'Set OpenAI API key in VibeType AI settings.' };
+  }
+  const t = String(text || '').trim();
+  if (!t) {
+    return { ok: false, error: 'No text to transform.' };
+  }
+
+  const userContent =
+    'Give exactly 3 alternative corrected versions of the text. Fix spelling, grammar, and punctuation. ' +
+    'Keep the same meaning and overall style; versions may differ slightly where several correct choices exist ' +
+    '(e.g. comma style, light punctuation, optional words).\n\n' +
+    'Rules: output only the three corrected texts. Between them put one line that contains only three dashes: ---\n' +
+    'No numbers, no labels, no markdown.\n\n' +
+    `Text:\n${t}`;
+
+  try {
+    const response = await openAiRequest('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a writing assistant. Follow the user format exactly. No preamble, no closing remarks.'
+          },
+          { role: 'user', content: userContent }
+        ],
+        temperature: 0.45
+      })
+    });
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      const msg = errBody.error?.message || 'AI request failed';
+      return { ok: false, error: msg };
+    }
+
+    const data = await response.json();
+    const rawContent = data.choices[0].message.content.trim();
+    const suggestions = parseThreeModelSegments(rawContent);
+    if (suggestions.length < 3) {
+      return { ok: false, error: 'Could not get 3 options. Try Fix & Polish again.' };
+    }
+    return { ok: true, suggestions };
+  } catch (e) {
+    console.error('grammar-float-three-fix-polish:', e);
+    return { ok: false, error: friendlyOpenAiNetworkError(e, e.message || 'AI failed') };
+  }
+});
+
 ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstruction }) => {
   const apiKey = store.get('openaiApiKey');
   if (!apiKey) {
