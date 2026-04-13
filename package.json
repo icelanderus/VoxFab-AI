@@ -47,8 +47,8 @@
     "text",
     "transcription"
   ],
-  "author": "Personal",
-  "license": "MIT",
+  "author": "Ilya Tsuprun",
+  "license": "CC-BY-NC-SA-4.0",
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
