@@ -2,16 +2,33 @@
 
 **Speak into Existence.** VoxFab AI is a powerful, glassmorphic desktop writing assistant that brings system-wide voice-to-text and AI-powered text refinement to your fingertips.
 
-![VoxFab AI Preview](assets/voxfabAI-launcher-icon.png)
+[![Website](https://img.shields.io/badge/Website-voxfab.app-blue?style=for-the-badge)](https://voxfab.app/)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey?style=for-the-badge)](LICENSE)
+
+![VoxFab AI Preview](assets/hero.png)
 
 ## ✨ Features
 
-- 🎙️ **System-wide Dictation**: Press `Ctrl+Shift+Space` (or `⌘⇧Space`) to record audio and have it typed directly into any active application.
-- 🤖 **AI Writing Assistant**: Highlight any text and press `Ctrl+Shift+E` (`⌘⇧E`) to fix grammar, change tone, summarize, or expand your writing using GPT-4.
-- 🖼️ **OCR capabilities**: Extract text from images or screen regions and process it with AI.
-- 🔘 **Mini FAB mode**: A sleek, floating action button that stays out of your way but provides quick access to core features.
-- 🔒 **Privacy Focused**: Use local Whisper engines for transcription or connect your own OpenAI API key for maximum performance.
-- 🎨 **Beautiful UI**: Modern glassmorphic design that feels native on Windows and macOS.
+### 🎙️ System-wide Dictation
+Press `Ctrl+Shift+Space` (or `⌘⇧Space`) to record audio and have it typed directly into any active application. VoxFab transcribes anything you say and automatically pastes it into the field that was last in focus.
+
+![System-wide intelligence](assets/ai-assistant.png)
+
+### 🤖 AI Writing Assistant
+Highlight any text and press `Ctrl+Shift+E` (`⌘⇧E`) to fix grammar, change tone, summarize, or expand your writing using GPT-4. Stop switching between windows; refine text instantly within Slack, VS Code, or your Browser.
+
+![The Assistant that Follows You](assets/following-assistant.png)
+
+### 🖼️ OCR Capabilities
+Extract text from images or screen regions and process it with AI. Powerful for capturing information from videos, non-selectable PDFs, or legacy applications.
+
+### 🔘 Mini FAB Mode
+Collapse VoxFab into a small, floating action button that stays out of your way but always within reach. Drag it anywhere, and one click brings the full power back.
+
+![Seamless Transition to FAB](assets/fab-mode.png)
+
+### 🔒 Privacy Focused
+Use local Whisper engines for privacy or connect your own OpenAI API key for maximum accuracy and cloud features.
 
 ## 🚀 Getting Started
 
@@ -23,8 +40,8 @@
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/voxfab-ai.git
-   cd voxfab-ai
+   git clone https://github.com/icelanderus/VoxFab-AI.git
+   cd VoxFab-AI
    ```
 
 2. **Install dependencies:**
@@ -36,13 +53,6 @@
    ```bash
    npm start
    ```
-
-## ⚙️ Configuration
-
-VoxFab AI allows you to choose your speech-to-text engine in the Settings panel:
-- **Local Whisper**: Runs entirely on your machine (requires `@huggingface/transformers`).
-- **OpenAI Whisper**: High accuracy via API (requires an OpenAI API Key).
-- **Google Cloud Speech**: Another cloud option for transcription.
 
 ## 📄 License
 
