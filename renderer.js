@@ -1,5 +1,5 @@
 /**
- * VibeType AI — Renderer
+ * VoxFab AI — Renderer
  * Handles UI interactions, audio capture, and speech engine routing
  */
 
@@ -445,7 +445,7 @@ async function startRegionOcrFromScreen() {
     if (result.errorKey === 'capture-failed') {
       showToast(
         window.electronAPI.platform === 'darwin'
-          ? 'Could not capture the screen. Grant Screen Recording for VibeType AI in System Settings → Privacy.'
+          ? 'Could not capture the screen. Grant Screen Recording for VoxFab AI in System Settings → Privacy.'
           : 'Could not capture the screen. Check permissions and try again.',
         'error'
       );
@@ -1939,7 +1939,7 @@ function notifyPasteResult(result) {
   } else if (noTarget) {
     msg = `No target app remembered. Click the field where text should go (e.g. Composer), then try again — or press ${pasteHint} to paste manually.`;
   } else if (pasteFailed && isMac) {
-    msg = `Auto-paste failed. Turn on Accessibility for the exact app you run (VibeType AI from Applications, or Electron if npm run dev). Click the target field, try again — or ${pasteHint} to paste.`;
+    msg = `Auto-paste failed. Turn on Accessibility for the exact app you run (VoxFab AI from Applications, or Electron if npm run dev). Click the target field, try again — or ${pasteHint} to paste.`;
     showAccBtn = true;
   } else {
     msg = `Could not paste into the other app. Text is on the clipboard — press ${pasteHint} in that window.`;

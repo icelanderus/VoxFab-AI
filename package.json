@@ -1,5 +1,5 @@
 {
-  "name": "my-tts-app",
+  "name": "voxfab-ai",
   "version": "1.3.1",
   "description": "System-wide voice-to-text desktop app",
   "main": "main.js",
@@ -9,8 +9,8 @@
     "build": "electron-builder"
   },
   "build": {
-    "appId": "com.personal.voice-to-text",
-    "productName": "VibeTypeAI",
+    "appId": "com.personal.voxfab-ai",
+    "productName": "VoxFab AI",
     "publish": null,
     "mac": {
       "target": [

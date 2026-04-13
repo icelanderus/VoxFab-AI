@@ -1,4 +1,4 @@
 @echo off
-title VibeType AI
+title VoxFab AI
 cd /d "%~dp0"
 npm start

@@ -1,6 +1,6 @@
 # Window Monitor Script
 # Continuously monitors the foreground window and outputs its handle
-# Filters out the VibeType AI app window
+# Filters out the VoxFab AI app window
 
 param([int]$ExcludeHandle = 0)
 
@@ -25,7 +25,7 @@ while ($true) {
         $process = Get-Process -Id $procId -ErrorAction SilentlyContinue
         if ($process) {
             $name = $process.ProcessName
-            if ($name -ne "VibeType AI" -and $name -ne "electron" -and $name -ne "Electron") {
+            if ($name -ne "VoxFab AI" -and $name -ne "electron" -and $name -ne "Electron") {
                 Write-Output "HANDLE:$h NAME:$name"
                 [Console]::Out.Flush()
             }

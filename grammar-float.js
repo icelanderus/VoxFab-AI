@@ -284,7 +284,7 @@ async function runAction(type) {
   hideRephrasePicks();
   const settings = await grammarAPI.getSettings();
   if (!settings.openaiApiKey) {
-    setHintLine('Set OpenAI API key in VibeType AI → Settings.');
+    setHintLine('Set OpenAI API key in VoxFab AI → Settings.');
     fitFloatToContent(350);
     return;
   }
@@ -426,7 +426,7 @@ grammarAPI.onInit(async (payload) => {
   if (payload.scanError) {
     setHintLine(payload.scanError);
   } else if (payload.noApiKey) {
-    setHintLine('Add OpenAI API key in VibeType AI settings to scan text and run AI actions.');
+    setHintLine('Add OpenAI API key in VoxFab AI settings to scan text and run AI actions.');
   } else if (payload.hasIssues === true) {
     setHintLine(payload.summary || 'Possible writing issues — pick an action below.');
   } else if (payload.hasIssues === false) {

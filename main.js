@@ -175,7 +175,7 @@ function macCopySelectionInline(handle) {
 
 // Set App User Model ID for Windows Taskbar
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.icelanderus.my-voice-to-text');
+  app.setAppUserModelId('com.icelanderus.voxfab-ai');
 }
 
 function createWindow() {
@@ -287,7 +287,7 @@ function createTray() {
     }
   ]);
 
-  tray.setToolTip('VibeType AI');
+  tray.setToolTip('VoxFab AI');
   tray.setContextMenu(contextMenu);
 
   tray.on('click', () => {
@@ -319,7 +319,11 @@ function registerGlobalShortcut() {
   const onToggleHotkey = () => {
     snapshotFrontmostPasteTarget();
     toggleRecording();
-    if (mainWindow && !mainWindow.isVisible()) {
+    
+    // Only show main window if we are NOT in mini-fab mode
+    const isMiniMode = miniFabWindow && !miniFabWindow.isDestroyed() && miniFabWindow.isVisible();
+    
+    if (!isMiniMode && mainWindow && !mainWindow.isVisible()) {
       mainWindow.show();
       if (process.platform === 'win32') {
         mainWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -476,7 +480,7 @@ let lastExternalWindowHandle = null;
 let lastExternalWindowName = null;
 const { spawn, exec, spawnSync } = require('child_process');
 
-const OUR_PROCESS_NAMES = new Set(['Electron', 'VibeType AI']);
+const OUR_PROCESS_NAMES = new Set(['Electron', 'VoxFab AI']);
 
 /** macOS: remember which app was frontmost when the user pressed a global shortcut (before our window may steal focus). */
 function snapshotFrontmostPasteTarget() {
@@ -594,7 +598,7 @@ ipcMain.handle('region-ocr', async () => {
     return { ok: false, errorKey: 'capture-failed' };
   }
 
-  const tmpPath = path.join(app.getPath('temp'), `vibetype-region-${Date.now()}.png`);
+  const tmpPath = path.join(app.getPath('temp'), `voxfab-region-${Date.now()}.png`);
   try {
     fs.writeFileSync(tmpPath, fullImage.toPNG());
   } catch (e) {
@@ -1442,7 +1446,7 @@ ipcMain.handle('type-text', async (event, text) => {
             ok: false,
             reason: 'paste-failed',
             stderr:
-              'All paste methods failed — enable Accessibility for VibeType AI, click the target field first, then try again'
+              'All paste methods failed — enable Accessibility for VoxFab AI, click the target field first, then try again'
           };
         }
       }
@@ -1491,7 +1495,7 @@ function parseThreeModelSegments(raw) {
 ipcMain.handle('grammar-float-three-rephrases', async (_event, { text }) => {
   const apiKey = store.get('openaiApiKey');
   if (!apiKey) {
-    return { ok: false, error: 'Set OpenAI API key in VibeType AI settings.' };
+    return { ok: false, error: 'Set OpenAI API key in VoxFab AI settings.' };
   }
   const t = String(text || '').trim();
   if (!t) {
@@ -1547,7 +1551,7 @@ ipcMain.handle('grammar-float-three-rephrases', async (_event, { text }) => {
 ipcMain.handle('grammar-float-three-fix-polish', async (_event, { text }) => {
   const apiKey = store.get('openaiApiKey');
   if (!apiKey) {
-    return { ok: false, error: 'Set OpenAI API key in VibeType AI settings.' };
+    return { ok: false, error: 'Set OpenAI API key in VoxFab AI settings.' };
   }
   const t = String(text || '').trim();
   if (!t) {
@@ -1605,7 +1609,7 @@ ipcMain.handle('grammar-float-three-fix-polish', async (_event, { text }) => {
 ipcMain.handle('grammar-ai-action', async (_event, { type, text, customInstruction }) => {
   const apiKey = store.get('openaiApiKey');
   if (!apiKey) {
-    return { ok: false, error: 'Set OpenAI API key in VibeType AI settings.' };
+    return { ok: false, error: 'Set OpenAI API key in VoxFab AI settings.' };
   }
   const t = String(text || '').trim();
   if (!t) {
@@ -1773,7 +1777,7 @@ ipcMain.handle('is-accessibility-trusted', () => {
   return systemPreferences.isTrustedAccessibilityClient(false);
 });
 
-/** Installed .app is a different macOS identity than `npm run dev` (Electron / Terminal). Auto-paste needs Accessibility ON for VibeType AI. */
+/** Installed .app is a different macOS identity than `npm run dev` (Electron / Terminal). Auto-paste needs Accessibility ON for VoxFab AI. */
 function promptPackagedMacAccessibilityIfNeeded() {
   if (process.platform !== 'darwin' || !app.isPackaged) return;
   if (systemPreferences.isTrustedAccessibilityClient(false)) return;
@@ -1783,8 +1787,8 @@ function promptPackagedMacAccessibilityIfNeeded() {
     dialog
       .showMessageBox(mainWindow, {
         type: 'warning',
-        title: 'VibeType AI',
-        message: 'Turn ON Accessibility for “VibeType AI”',
+        title: 'VoxFab AI',
+        message: 'Turn ON Accessibility for “VoxFab AI”',
         detail:
           'Auto-paste only works if this app is allowed in System Settings → Privacy & Security → Accessibility.\n\nWhen you run “npm run dev”, macOS lists “Electron” or “Terminal” — that is a different entry. The installed app needs its own toggle ON (blue).',
         buttons: ['Open Accessibility settings', 'OK'],
