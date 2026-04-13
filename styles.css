@@ -5,7 +5,7 @@
 
 :root {
   --bg-primary-base: 15, 15, 25;
-  --bg-opacity: 0.85;
+  --bg-opacity: 1;
   
   --bg-primary: rgba(var(--bg-primary-base), var(--bg-opacity));
   --bg-secondary: rgba(25, 25, 45, 0.85);
@@ -1237,6 +1237,58 @@ html.about-overlay-open .mic-ring::before {
 
 .api-key-group.visible {
   display: flex;
+}
+
+.setting-input-key-readonly {
+  cursor: pointer;
+}
+
+.api-key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.api-key-actions.hidden {
+  display: none !important;
+}
+
+.api-key-btn {
+  padding: 7px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast), opacity var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+
+.api-key-btn:hover {
+  border-color: rgba(0, 212, 255, 0.35);
+}
+
+.api-key-btn--primary {
+  border: none;
+  background: var(--accent-gradient);
+  color: white;
+}
+
+.api-key-btn--primary:hover {
+  box-shadow: var(--shadow-glow-cyan);
+}
+
+.api-key-btn--danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.api-key-btn--danger:hover {
+  border-color: rgba(248, 113, 113, 0.75);
 }
 
 /* ========================================

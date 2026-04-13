@@ -37,7 +37,11 @@ let state = {
   livePreviewMuteGain: null,
   currentTextTab: 'transcription',
   transcriptionHistory: [],
-  selectedHistoryIndex: -1
+  selectedHistoryIndex: -1,
+  /** Set at init on macOS when Intel .app runs on Apple Silicon (Rosetta). */
+  binaryInstallIssue: null,
+  /** When set to `silence-timeout`, `processAudio` shows a single “no speech” message (auto-stop). */
+  recordingStopReason: null
 };
 
 const ICONS = {
@@ -45,8 +49,86 @@ const ICONS = {
   analyze: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="3"/><path d="m16 19-3.5-3.5"/></svg>'
 };
 
-// Speech engine instances (lazy loaded)
+/** Ignore auto-stop right after start (transients / user reaction time). */
+const RECORD_SILENCE_WARMUP_MS = 1500;
+/** Stop if the mic stays below the “speech” level for this long (no talk). */
+const RECORD_SILENCE_HOLD_MS = 10000;
+/** Must exceed these (float time-domain) to count as possible speech — quiet music/room hum stays “silent”. */
+const RECORD_VOICE_PEAK = 0.034;
+const RECORD_VOICE_RMS = 0.011;
+/** Consecutive loud frames needed before we reset the silence timer (filters random spikes). */
+const RECORD_VOICE_SUSTAIN_FRAMES = 5;
+
 let localWhisperEngine = null;
+/** OpenAI API key field: click-to-edit with Save / Cancel / Delete. */
+let openaiKeyEditing = false;
+
+/** UI sounds in `assets/sounds/` — primary `mic-on.mp3` / `mic-off.mp3`, fallback `.wav`. */
+function playMicUiSound(on) {
+  if (state.settings && state.settings.uiSoundsEnabled === false) return;
+  const base = on ? 'mic-on' : 'mic-off';
+  const vol = 0.5;
+  const a = new Audio(`assets/sounds/${base}.mp3`);
+  a.volume = vol;
+  const p = a.play();
+  if (p && typeof p.catch === 'function') {
+    p.catch(() => {
+      const b = new Audio(`assets/sounds/${base}.wav`);
+      b.volume = vol;
+      void b.play().catch(() => {});
+    });
+  }
+}
+
+function applyOpenaiKeyReadonlyUi() {
+  openaiKeyEditing = false;
+  if (!elements.openaiKey) return;
+  elements.openaiKey.readOnly = true;
+  elements.openaiKey.classList.add('setting-input-key-readonly');
+  elements.openaiKey.value = state.settings.openaiApiKey || '';
+  if (elements.openaiKeyActions) elements.openaiKeyActions.classList.add('hidden');
+}
+
+function enterOpenaiKeyEditMode() {
+  if (openaiKeyEditing) return;
+  openaiKeyEditing = true;
+  if (elements.openaiKey) {
+    elements.openaiKey.readOnly = false;
+    elements.openaiKey.classList.remove('setting-input-key-readonly');
+    elements.openaiKey.value = state.settings.openaiApiKey || '';
+    elements.openaiKey.focus();
+    try {
+      elements.openaiKey.select();
+    } catch (_) {}
+  }
+  if (elements.openaiKeyActions) elements.openaiKeyActions.classList.remove('hidden');
+}
+
+function exitOpenaiKeyEditCancel() {
+  openaiKeyEditing = false;
+  if (!elements.openaiKey) return;
+  elements.openaiKey.readOnly = true;
+  elements.openaiKey.classList.add('setting-input-key-readonly');
+  elements.openaiKey.value = state.settings.openaiApiKey || '';
+  if (elements.openaiKeyActions) elements.openaiKeyActions.classList.add('hidden');
+}
+
+async function saveOpenaiKeyFromPanel() {
+  const val = elements.openaiKey ? String(elements.openaiKey.value).trim() : '';
+  const settings = { ...state.settings, openaiApiKey: val };
+  await window.electronAPI.saveSettings(settings);
+  state.settings = settings;
+  exitOpenaiKeyEditCancel();
+  showToast('API key saved.', 'success');
+}
+
+async function deleteOpenaiKeyFromPanel() {
+  const settings = { ...state.settings, openaiApiKey: '' };
+  await window.electronAPI.saveSettings(settings);
+  state.settings = settings;
+  exitOpenaiKeyEditCancel();
+  showToast('API key removed.', 'success');
+}
 
 // ============================================
 // DOM Elements
@@ -101,7 +183,10 @@ const elements = {
   translateToggleSettings: document.getElementById('translate-toggle-settings'),
   languageGroup: document.getElementById('language-group'),
   languageSelect: document.getElementById('language-select'),
-  saveSettingsBtn: document.getElementById('save-settings'),
+  openaiKeyActions: document.getElementById('openai-key-actions'),
+  openaiKeySave: document.getElementById('openai-key-save'),
+  openaiKeyCancel: document.getElementById('openai-key-cancel'),
+  openaiKeyDelete: document.getElementById('openai-key-delete'),
   aboutBtn: document.getElementById('about-btn'),
   aboutPanel: document.getElementById('about-panel'),
   aboutBack: document.getElementById('about-back'),
@@ -130,6 +215,7 @@ const elements = {
   assistantEnabledToggleSettings: document.getElementById('assistant-enabled-toggle-settings'),
   grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle'),
   livePreviewToggleSettings: document.getElementById('live-preview-toggle-settings'),
+  uiSoundsToggleSettings: document.getElementById('ui-sounds-toggle-settings'),
   collapseBtn: document.getElementById('collapse-btn')
 };
 
@@ -173,10 +259,22 @@ async function init() {
   if (typeof window.electronAPI.setProcessingState === 'function') {
     window.electronAPI.setProcessingState(false);
   }
+  if (typeof window.electronAPI.getMacosBinaryInstallIssue === 'function') {
+    try {
+      state.binaryInstallIssue = await window.electronAPI.getMacosBinaryInstallIssue();
+    } catch {
+      state.binaryInstallIssue = null;
+    }
+  }
   renderHistoryList();
   setActiveTextTab('transcription');
   setupEventListeners();
-  setStatus('ready', 'Ready');
+  if (state.binaryInstallIssue) {
+    setStatus('error', state.binaryInstallIssue.shortStatus);
+    showToast(state.binaryInstallIssue.toast, 'error', { duration: 14000 });
+  } else {
+    setStatus('ready', 'Ready');
+  }
   updateAiToolbarVisibility();
 
   renderHotkeyHint();
@@ -250,8 +348,8 @@ async function loadSettings() {
   if (elements.translateToggle) elements.translateToggle.checked = state.translateToEnglish;
   if (elements.translateToggleSettings) elements.translateToggleSettings.checked = state.translateToEnglish;
   if (elements.languageSelect) elements.languageSelect.value = state.settings.language || 'en';
-  if (elements.openaiKey) elements.openaiKey.value = state.settings.openaiApiKey || '';
   if (elements.googleKey) elements.googleKey.value = state.settings.googleApiKey || '';
+  applyOpenaiKeyReadonlyUi();
   
   const assistantEnabled = state.settings.assistantEnabled !== false;
   syncAssistantEnabledToggles(assistantEnabled);
@@ -262,10 +360,13 @@ async function loadSettings() {
   if (elements.livePreviewToggleSettings) {
     elements.livePreviewToggleSettings.checked = state.settings.livePreviewEnabled === true;
   }
+  if (elements.uiSoundsToggleSettings) {
+    elements.uiSoundsToggleSettings.checked = state.settings.uiSoundsEnabled !== false;
+  }
   updateWritingAssistantButtonVisibility();
 
   // Appearance
-  const opacity = state.settings.bgOpacity !== undefined ? state.settings.bgOpacity : 0.85;
+  const opacity = state.settings.bgOpacity !== undefined ? state.settings.bgOpacity : 1;
   if (elements.bgOpacitySlider) elements.bgOpacitySlider.value = opacity;
   applyAppearance(opacity);
 
@@ -331,8 +432,21 @@ function setupEventListeners() {
   if (elements.settingsBack) elements.settingsBack.addEventListener('click', toggleSettings);
   if (elements.aboutBtn) elements.aboutBtn.addEventListener('click', toggleAbout);
   if (elements.aboutBack) elements.aboutBack.addEventListener('click', toggleAbout);
-  if (elements.saveSettingsBtn) elements.saveSettingsBtn.addEventListener('click', saveSettings);
-  
+  if (elements.openaiKey) {
+    elements.openaiKey.addEventListener('click', () => {
+      if (elements.openaiKey.readOnly) enterOpenaiKeyEditMode();
+    });
+    elements.openaiKey.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && openaiKeyEditing) {
+        e.preventDefault();
+        exitOpenaiKeyEditCancel();
+      }
+    });
+  }
+  if (elements.openaiKeySave) elements.openaiKeySave.addEventListener('click', () => saveOpenaiKeyFromPanel().catch(console.error));
+  if (elements.openaiKeyCancel) elements.openaiKeyCancel.addEventListener('click', () => exitOpenaiKeyEditCancel());
+  if (elements.openaiKeyDelete) elements.openaiKeyDelete.addEventListener('click', () => deleteOpenaiKeyFromPanel().catch(console.error));
+
   if (elements.assistantEnabledToggle) {
     elements.assistantEnabledToggle.addEventListener('change', () => {
       syncAssistantEnabledToggles(elements.assistantEnabledToggle.checked);
@@ -342,6 +456,7 @@ function setupEventListeners() {
   if (elements.assistantEnabledToggleSettings) {
     elements.assistantEnabledToggleSettings.addEventListener('change', () => {
       syncAssistantEnabledToggles(elements.assistantEnabledToggleSettings.checked);
+      saveQuickSettings();
     });
   }
   if (elements.grammarFloatResizableToggle) {
@@ -350,7 +465,16 @@ function setupEventListeners() {
   if (elements.livePreviewToggleSettings) {
     elements.livePreviewToggleSettings.addEventListener('change', saveQuickSettings);
   }
-  elements.engineSelect.addEventListener('change', updateApiKeyVisibility);
+  if (elements.uiSoundsToggleSettings) {
+    elements.uiSoundsToggleSettings.addEventListener('change', saveQuickSettings);
+  }
+  elements.engineSelect.addEventListener('change', () => {
+    updateApiKeyVisibility();
+    saveQuickSettings();
+  });
+  if (elements.languageSelect) {
+    elements.languageSelect.addEventListener('change', () => saveQuickSettings());
+  }
   elements.autoDetectToggle.addEventListener('change', () => {
     elements.autoDetectToggleSettings.checked = elements.autoDetectToggle.checked;
     updateLanguageState();
@@ -1040,7 +1164,49 @@ function applyPostRecordTranscription(whisperText) {
 // ============================================
 // Recording
 // ============================================
+
+/** Stop MediaStream tracks. Call after MediaRecorder `onstop` once the blob is built from chunks. */
+function releaseMicStream() {
+  if (state.audioStream) {
+    try {
+      state.audioStream.getTracks().forEach((track) => track.stop());
+    } catch (_) {}
+    state.audioStream = null;
+  }
+}
+
+/** Tear down analyser / live-preview graph. Must not run before `mediaRecorder` has emitted its final chunks. */
+function cleanupRecordingAudioGraph() {
+  if (state.livePreviewProcessor) {
+    try {
+      state.livePreviewProcessor.onaudioprocess = null;
+      state.livePreviewProcessor.disconnect();
+    } catch (_) {}
+    state.livePreviewProcessor = null;
+  }
+  if (state.livePreviewMuteGain) {
+    try {
+      state.livePreviewMuteGain.disconnect();
+    } catch (_) {}
+    state.livePreviewMuteGain = null;
+  }
+  state.livePreviewPcmChunks = [];
+  if (state.audioContext) {
+    try {
+      state.audioContext.close();
+    } catch (_) {}
+    state.audioContext = null;
+    state.analyser = null;
+  }
+}
+
 async function startRecording() {
+  if (state.binaryInstallIssue) {
+    setStatus('error', state.binaryInstallIssue.shortStatus);
+    showToast(state.binaryInstallIssue.toast, 'error', { duration: 12000 });
+    return;
+  }
+  state.recordingStopReason = null;
   try {
     state.audioStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -1064,7 +1230,13 @@ async function startRecording() {
     };
 
     state.mediaRecorder.onstop = async () => {
-      const audioBlob = new Blob(state.audioChunks, { type: state.mediaRecorder.mimeType });
+      cleanupRecordingAudioGraph();
+      const mimeType =
+        state.mediaRecorder && state.mediaRecorder.mimeType
+          ? state.mediaRecorder.mimeType
+          : 'audio/webm';
+      const audioBlob = new Blob(state.audioChunks, { type: mimeType });
+      releaseMicStream();
       await processAudio(audioBlob);
     };
 
@@ -1100,50 +1272,45 @@ async function startRecording() {
     elements.waveformRight.classList.add('active');
 
     // Start audio visualization (+ PCM tap for live preview when enabled)
+    state.recordingWallMs = performance.now();
     setupAudioVisualization(state.audioStream, { captureLivePcm: livePreviewOn });
+    playMicUiSound(true);
 
   } catch (error) {
     console.error('Failed to start recording:', error);
+    if (state.isRecording) {
+      state.isRecording = false;
+      try {
+        if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+          state.mediaRecorder.onstop = null;
+          state.mediaRecorder.stop();
+        }
+      } catch (_) {}
+      releaseMicStream();
+      cleanupRecordingAudioGraph();
+      window.electronAPI.setRecordingState(false).catch(() => {});
+    }
     setStatus('error', 'Microphone access denied');
     showToast('Could not access microphone. Please grant permission.', 'error');
   }
 }
 
 function stopRecording() {
+  playMicUiSound(false);
   state.isRecording = false;
   stopLiveSpeechRecognition();
   stopLiveEnginePreviewPolling();
 
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+    try {
+      if (typeof state.mediaRecorder.requestData === 'function') {
+        state.mediaRecorder.requestData();
+      }
+    } catch (_) {}
     state.mediaRecorder.stop();
-  }
-
-  if (state.audioStream) {
-    state.audioStream.getTracks().forEach(track => track.stop());
-    state.audioStream = null;
-  }
-
-  if (state.livePreviewProcessor) {
-    try {
-      state.livePreviewProcessor.onaudioprocess = null;
-      state.livePreviewProcessor.disconnect();
-    } catch (_) {}
-    state.livePreviewProcessor = null;
-  }
-  if (state.livePreviewMuteGain) {
-    try {
-      state.livePreviewMuteGain.disconnect();
-    } catch (_) {}
-    state.livePreviewMuteGain = null;
-  }
-  state.livePreviewPcmChunks = [];
-
-  if (state.audioContext) {
-    try {
-      state.audioContext.close();
-    } catch (_) {}
-    state.audioContext = null;
-    state.analyser = null;
+  } else {
+    releaseMicStream();
+    cleanupRecordingAudioGraph();
   }
 
   window.electronAPI.setRecordingState(false);
@@ -1178,7 +1345,14 @@ function setupAudioVisualization(stream, opts = {}) {
   state.analyser = state.audioContext.createAnalyser();
   const source = state.audioContext.createMediaStreamSource(stream);
   source.connect(state.analyser);
-  state.analyser.fftSize = 64;
+  state.analyser.fftSize = 2048;
+  state.analyser.smoothingTimeConstant = 0.45;
+
+  const tdBuf = new Float32Array(state.analyser.fftSize);
+  const recordingStartMs = typeof state.recordingWallMs === 'number' ? state.recordingWallMs : performance.now();
+  let silenceSinceMs = null;
+  let silenceAutoStopFired = false;
+  let voiceStreak = 0;
 
   state.livePreviewSampleRate = state.audioContext.sampleRate;
   if (captureLivePcm) {
@@ -1206,7 +1380,7 @@ function setupAudioVisualization(stream, opts = {}) {
   const bars = document.querySelectorAll('.wave-bar');
 
   function animate() {
-    if (!state.isRecording) return;
+    if (!state.isRecording || silenceAutoStopFired) return;
     state.analyser.getByteFrequencyData(dataArray);
 
     bars.forEach((bar, i) => {
@@ -1214,6 +1388,30 @@ function setupAudioVisualization(stream, opts = {}) {
       const height = Math.max(6, (value / 255) * 24);
       bar.style.height = `${height}px`;
     });
+
+    state.analyser.getFloatTimeDomainData(tdBuf);
+    const { rms, peak } = analyzePcmAmplitude(tdBuf);
+    const frameLoud = peak >= RECORD_VOICE_PEAK || rms >= RECORD_VOICE_RMS;
+    if (frameLoud) voiceStreak += 1;
+    else voiceStreak = 0;
+    const voice = voiceStreak >= RECORD_VOICE_SUSTAIN_FRAMES;
+    const now = performance.now();
+    const elapsed = now - recordingStartMs;
+
+    if (elapsed < RECORD_SILENCE_WARMUP_MS) {
+      silenceSinceMs = null;
+      voiceStreak = 0;
+    } else if (voice) {
+      silenceSinceMs = null;
+    } else {
+      if (silenceSinceMs === null) silenceSinceMs = now;
+      if (now - silenceSinceMs >= RECORD_SILENCE_HOLD_MS) {
+        silenceAutoStopFired = true;
+        state.recordingStopReason = 'silence-timeout';
+        stopRecording();
+        return;
+      }
+    }
 
     requestAnimationFrame(animate);
   }
@@ -1225,6 +1423,9 @@ function setupAudioVisualization(stream, opts = {}) {
 // ============================================
 async function processAudio(audioBlob) {
   state.isProcessing = true;
+  const silenceTimeout = state.recordingStopReason === 'silence-timeout';
+  state.recordingStopReason = null;
+
   setStatus('processing', 'Transcribing…');
   if (typeof window.electronAPI.setProcessingState === 'function') {
     window.electronAPI.setProcessingState(true);
@@ -1233,8 +1434,16 @@ async function processAudio(audioBlob) {
   try {
     if (!audioBlob || audioBlob.size < 1200) {
       applyPostRecordTranscription(null);
-      setStatus('ready', 'No speech detected');
-      showToast('Recording too short or empty.', 'warning');
+      if (silenceTimeout) {
+        setStatus('ready', 'No speech detected');
+        showToast('Recording stopped — no speech for a while.', 'warning');
+      } else if (state.binaryInstallIssue) {
+        setStatus('error', state.binaryInstallIssue.shortStatus);
+        showToast(state.binaryInstallIssue.toast, 'error', { duration: 12000 });
+      } else {
+        setStatus('ready', 'No speech detected');
+        showToast('Recording too short or empty.', 'warning');
+      }
       return;
     }
 
@@ -1243,18 +1452,30 @@ async function processAudio(audioBlob) {
       pcm = await audioBlobToFloat32(audioBlob);
     } catch (_) {
       applyPostRecordTranscription(null);
-      setStatus('ready', 'No speech detected');
-      showToast('Could not read audio. Try recording a bit longer.', 'warning');
+      if (silenceTimeout) {
+        setStatus('ready', 'No speech detected');
+        showToast('Recording stopped — no speech for a while.', 'warning');
+      } else if (state.binaryInstallIssue) {
+        setStatus('error', state.binaryInstallIssue.shortStatus);
+        showToast(state.binaryInstallIssue.toast, 'error', { duration: 12000 });
+      } else {
+        setStatus('ready', 'No speech detected');
+        showToast('Could not read audio. Try recording a bit longer.', 'warning');
+      }
       return;
     }
 
     if (isLikelySilentPcm(pcm)) {
       applyPostRecordTranscription(null);
       setStatus('ready', 'No speech detected');
-      showToast(
-        'No clear speech detected (too quiet). Whisper invents text on silence — speak up or move closer to the mic.',
-        'warning'
-      );
+      if (silenceTimeout) {
+        showToast('Recording stopped — no speech for a while.', 'warning');
+      } else {
+        showToast(
+          'No clear speech detected (too quiet). Whisper invents text on silence — speak up or move closer to the mic.',
+          'warning'
+        );
+      }
       return;
     }
 
@@ -1613,6 +1834,8 @@ function toggleSettings() {
     elements.mainContent.classList.add('slide-out');
     syncAuxPanelMotionClass();
   } else {
+    exitOpenaiKeyEditCancel();
+    void saveQuickSettings().catch(() => {});
     elements.settingsPanel.classList.remove('visible');
     elements.mainContent.classList.remove('slide-out');
     syncAuxPanelMotionClass();
@@ -1623,25 +1846,33 @@ function toggleSettings() {
   }
 }
 
-async function saveSettings() {
+async function saveQuickSettings() {
+  const prevEngine = state.engine;
+  const prevAutoDetect = state.autoDetectLanguage;
+
   const settings = {
-    engine: elements.engineSelect.value,
-    openaiApiKey: elements.openaiKey.value,
-    googleApiKey: elements.googleKey.value,
+    ...state.settings,
+    engine: elements.engineSelect ? elements.engineSelect.value : state.settings.engine,
+    language: elements.languageSelect ? elements.languageSelect.value : state.settings.language,
+    googleApiKey: elements.googleKey ? elements.googleKey.value : state.settings.googleApiKey || '',
     autoType: elements.autoTypeToggle.checked,
-    autoDetectLanguage: elements.autoDetectToggleSettings.checked,
-    translateToEnglish: elements.translateToggleSettings.checked,
-    language: elements.languageSelect.value,
+    autoDetectLanguage: elements.autoDetectToggle.checked,
+    translateToEnglish: elements.translateToggle.checked,
     bgOpacity: parseFloat(elements.bgOpacitySlider.value),
     assistantEnabled: elements.assistantEnabledToggleSettings
       ? elements.assistantEnabledToggleSettings.checked
-      : (elements.assistantEnabledToggle ? elements.assistantEnabledToggle.checked : state.settings.assistantEnabled !== false),
+      : elements.assistantEnabledToggle
+        ? elements.assistantEnabledToggle.checked
+        : state.settings.assistantEnabled !== false,
     grammarFloatResizable: elements.grammarFloatResizableToggle
       ? elements.grammarFloatResizableToggle.checked
       : state.settings.grammarFloatResizable !== false,
     livePreviewEnabled: elements.livePreviewToggleSettings
       ? elements.livePreviewToggleSettings.checked
-      : state.settings.livePreviewEnabled === true
+      : state.settings.livePreviewEnabled === true,
+    uiSoundsEnabled: elements.uiSoundsToggleSettings
+      ? elements.uiSoundsToggleSettings.checked
+      : state.settings.uiSoundsEnabled !== false
   };
 
   await window.electronAPI.saveSettings(settings);
@@ -1650,59 +1881,19 @@ async function saveSettings() {
   state.autoType = settings.autoType;
   state.autoDetectLanguage = settings.autoDetectLanguage;
   state.translateToEnglish = settings.translateToEnglish;
-  syncAssistantEnabledToggles(settings.assistantEnabled !== false);
-  if (elements.grammarFloatResizableToggle) {
-    elements.grammarFloatResizableToggle.checked = settings.grammarFloatResizable !== false;
-  }
 
-  // Keep main toggles in sync
-  elements.autoDetectToggle.checked = state.autoDetectLanguage;
-  elements.translateToggle.checked = state.translateToEnglish;
-
-  updateEngineBadge();
-  toggleSettings();
-  showToast('Settings saved!', 'success');
-
-  // Reset engine if changed or if auto-detect changed (to ensure multilingual model is loaded)
-  if (settings.engine !== state.engine || settings.autoDetectLanguage !== state.autoDetectLanguage) {
+  if (settings.engine !== prevEngine || settings.autoDetectLanguage !== prevAutoDetect) {
     localWhisperEngine = null;
   }
-}
 
-async function saveQuickSettings() {
-  const settings = {
-    ...state.settings,
-    autoType: elements.autoTypeToggle.checked,
-    autoDetectLanguage: elements.autoDetectToggle.checked,
-    translateToEnglish: elements.translateToggle.checked,
-    bgOpacity: parseFloat(elements.bgOpacitySlider.value),
-    assistantEnabled: elements.assistantEnabledToggle 
-      ? elements.assistantEnabledToggle.checked 
-      : state.settings.assistantEnabled !== false,
-    grammarFloatResizable: elements.grammarFloatResizableToggle
-      ? elements.grammarFloatResizableToggle.checked
-      : state.settings.grammarFloatResizable !== false,
-    livePreviewEnabled: elements.livePreviewToggleSettings
-      ? elements.livePreviewToggleSettings.checked
-      : state.settings.livePreviewEnabled === true
-  };
-
-  await window.electronAPI.saveSettings(settings);
-  state.settings = settings;
-  state.autoType = settings.autoType;
-
-  // If auto-detect changed, we might need to reload the engine
-  if (settings.autoDetectLanguage !== state.autoDetectLanguage) {
-    state.autoDetectLanguage = settings.autoDetectLanguage;
-    localWhisperEngine = null;
-  }
-  
-  state.translateToEnglish = settings.translateToEnglish;
   syncAssistantEnabledToggles(settings.assistantEnabled !== false);
 
-  // Keep settings toggles in sync
   if (elements.autoDetectToggleSettings) elements.autoDetectToggleSettings.checked = state.autoDetectLanguage;
   if (elements.translateToggleSettings) elements.translateToggleSettings.checked = state.translateToEnglish;
+
+  updateEngineBadge();
+  updateApiKeyVisibility();
+  updateLanguageState();
 
   console.log('Quick settings saved:', settings);
 }
@@ -1934,12 +2125,12 @@ function notifyPasteResult(result) {
   let showAccBtn = false;
   if (blocked && isMac) {
     msg =
-      'macOS blocked auto-paste: enable Accessibility for this app. If prompted, allow System Events (Automation).';
+      'macOS is still blocking automation: open Privacy & Security → Accessibility and turn the switch for “VoxFab AI” ON (blue). Gray = off. Quit and reopen the app after enabling.';
     showAccBtn = true;
   } else if (noTarget) {
     msg = `No target app remembered. Click the field where text should go (e.g. Composer), then try again — or press ${pasteHint} to paste manually.`;
   } else if (pasteFailed && isMac) {
-    msg = `Auto-paste failed. Turn on Accessibility for the exact app you run (VoxFab AI from Applications, or Electron if npm run dev). Click the target field, try again — or ${pasteHint} to paste.`;
+    msg = `Auto-paste failed. If Accessibility is already on, click the text field in the other app first, then record/stop again (the target app is captured when recording starts — not while this window is focused). Or press ${pasteHint}.`;
     showAccBtn = true;
   } else {
     msg = `Could not paste into the other app. Text is on the clipboard — press ${pasteHint} in that window.`;

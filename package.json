@@ -1,17 +1,24 @@
 {
   "name": "voxfab-ai",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "System-wide voice-to-text desktop app",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:mac:apple-silicon": "electron-builder --mac dmg --arm64 && node scripts/rename-mac-dmgs.js arm64",
+    "build:mac:intel": "electron-builder --mac dmg --x64 && node scripts/rename-mac-dmgs.js x64",
+    "build:mac:both-dmg": "npm run build:mac:apple-silicon && npm run build:mac:intel"
   },
   "build": {
     "appId": "com.personal.voxfab-ai",
     "productName": "VoxFab AI",
     "publish": null,
+    "artifactName": "VoxFab-AI-${version}-macOS-${arch}.${ext}",
+    "dmg": {
+      "title": "VoxFab AI ${version}"
+    },
     "mac": {
       "target": [
         "dmg",
