@@ -365,10 +365,25 @@
           </label>
         </div>
 
+        <div class="setting-group">
+          <label class="setting-label">Interface sounds</label>
+          <div class="setting-description">Play short sounds when recording starts and stops, and when the floating assistant opens.</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ui-sounds-toggle-settings" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
         <!-- API Keys -->
         <div class="setting-group api-key-group" id="openai-key-group">
           <label class="setting-label" for="openai-key">OpenAI API Key</label>
-          <input type="password" id="openai-key" class="setting-input" placeholder="sk-...">
+          <div class="setting-description">Click the field to edit. Use Save, Cancel, or Delete below.</div>
+          <input type="password" id="openai-key" class="setting-input setting-input-key-readonly" placeholder="sk-..." readonly autocomplete="off" spellcheck="false">
+          <div class="api-key-actions hidden" id="openai-key-actions">
+            <button type="button" class="api-key-btn api-key-btn--primary" id="openai-key-save">Save</button>
+            <button type="button" class="api-key-btn" id="openai-key-cancel">Cancel</button>
+            <button type="button" class="api-key-btn api-key-btn--danger" id="openai-key-delete">Delete</button>
+          </div>
         </div>
         
         <div class="setting-group api-key-group" id="google-key-group">
@@ -401,7 +416,7 @@
           <div class="setting-row">
             <span class="setting-name">Transparency</span>
             <div class="range-container">
-              <input type="range" id="bg-opacity-slider" min="0.05" max="1.0" step="0.05" value="0.85">
+              <input type="range" id="bg-opacity-slider" min="0.05" max="1.0" step="0.05" value="1">
             </div>
           </div>
         </div>
@@ -443,7 +458,6 @@
           <div class="setting-info" id="language-info">This option is disabled when Auto-Detect Language is on.</div>
         </div>
 
-        <button class="save-btn" id="save-settings">Save Settings</button>
         </div>
       </div>
     </div>
