@@ -1,6 +1,6 @@
 # VoxFab AI 🎙️✨
 
-**Speak into Existence.** VoxFab AI is a powerful, glassmorphic desktop writing assistant that brings system-wide voice-to-text and AI-powered text refinement to your fingertips.
+**Speak into Existence.** VoxFab AI is a super-simple, high-performance dictation productivity tool. Unlike other programs that try to be everything at once, VoxFab focuses on doing exactly one thing perfectly: lightning-fast voice-to-text with a sleek AI assistance overlay to boost your productivity. No bloat, no distractions—just pure speed for your workflow.
 
 [![Website](https://img.shields.io/badge/Website-voxfab.app-blue?style=for-the-badge)](https://voxfab.app/)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey?style=for-the-badge)](LICENSE)
