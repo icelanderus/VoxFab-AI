@@ -420,13 +420,6 @@ function setupEventListeners() {
   if (elements.minimizeBtn) elements.minimizeBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
   if (elements.closeBtn) elements.closeBtn.addEventListener('click', () => window.electronAPI.closeWindow());
   if (elements.collapseBtn) elements.collapseBtn.addEventListener('click', () => window.electronAPI.enterMiniMode());
-  const aboutBtn = document.getElementById('about-btn');
-  if (aboutBtn) {
-    aboutBtn.addEventListener('click', () => {
-      window.ipcRenderer.send('open-about');
-    });
-  }
-
   // Settings
   if (elements.settingsToggle) elements.settingsToggle.addEventListener('click', toggleSettings);
   if (elements.settingsBack) elements.settingsBack.addEventListener('click', toggleSettings);

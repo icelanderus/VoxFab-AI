@@ -265,6 +265,9 @@ function createTray() {
         if (mainWindow.isVisible()) {
           mainWindow.hide();
         } else {
+          if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+            miniFabWindow.hide();
+          }
           mainWindow.show();
           if (process.platform === 'win32') {
             mainWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -297,6 +300,9 @@ function createTray() {
     if (mainWindow.isVisible()) {
       mainWindow.hide();
     } else {
+      if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+        miniFabWindow.hide();
+      }
       mainWindow.show();
       if (process.platform === 'win32') {
         mainWindow.setAlwaysOnTop(true, 'screen-saver');
