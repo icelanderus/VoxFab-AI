@@ -55,6 +55,10 @@ class ConfigStore {
   set(key, value) { this.data[key] = value; this.save(); }
 }
 
+/** Initial main window size so the full UI (incl. bottom shortcuts) fits without scrolling. */
+const DEFAULT_WINDOW_SIZE = { width: 440, height: 620 };
+const LEGACY_DEFAULT_WINDOW_SIZE = { width: 340, height: 580 };
+
 const store = new ConfigStore({
   engine: 'local-whisper',
   openaiApiKey: '',
@@ -63,7 +67,9 @@ const store = new ConfigStore({
   autoDetectLanguage: true,
   translateToEnglish: false,
   windowPosition: null,
-  windowSize: { width: 340, height: 580 },
+  windowSize: { ...DEFAULT_WINDOW_SIZE },
+  /** One-time bump from LEGACY_DEFAULT_WINDOW_SIZE; avoids re-applying if user later chooses 340×580. */
+  windowSizeLegacyDefaultUpgraded: false,
   bgOpacity: 1,
   bgBlur: 12,
   language: 'en',
@@ -184,7 +190,15 @@ function createWindow() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
   const savedPosition = store.get('windowPosition');
-  const savedSize = store.get('windowSize') || { width: 340, height: 580 };
+  let savedSize = store.get('windowSize') || { ...DEFAULT_WINDOW_SIZE };
+  const matchesLegacyDefault =
+    savedSize.width === LEGACY_DEFAULT_WINDOW_SIZE.width &&
+    savedSize.height === LEGACY_DEFAULT_WINDOW_SIZE.height;
+  if (matchesLegacyDefault && !store.get('windowSizeLegacyDefaultUpgraded')) {
+    savedSize = { ...DEFAULT_WINDOW_SIZE };
+    store.set('windowSize', savedSize);
+    store.set('windowSizeLegacyDefaultUpgraded', true);
+  }
   const winWidth = savedSize.width;
   const winHeight = savedSize.height;
 

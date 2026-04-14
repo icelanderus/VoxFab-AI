@@ -1,6 +1,6 @@
 {
   "name": "voxfab-ai",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "System-wide voice-to-text desktop app",
   "main": "main.js",
   "scripts": {
@@ -28,7 +28,10 @@
       "category": "public.app-category.productivity"
     },
     "win": {
-      "target": ["zip", "portable"],
+      "target": [
+        "zip",
+        "portable"
+      ],
       "sign": null
     },
     "asar": true,
