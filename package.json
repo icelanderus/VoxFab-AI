@@ -1,6 +1,6 @@
 {
   "name": "voxfab-ai",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "System-wide voice-to-text desktop app",
   "main": "main.js",
   "scripts": {

@@ -148,6 +148,7 @@ const elements = {
   engineBadge: document.getElementById('settings-toggle'),
   engineName: document.getElementById('engine-name'),
   transcriptionText: document.getElementById('transcription-text'),
+  transcriptionEditorWrap: document.getElementById('transcription-editor-wrap'),
   historyText: document.getElementById('history-text'),
   historyList: document.getElementById('history-list'),
   historyEmpty: document.getElementById('history-empty'),
@@ -869,8 +870,10 @@ function setActiveTextTab(tab) {
   state.currentTextTab = nextTab;
 
   const transcriptionActive = nextTab === 'transcription';
+  if (elements.transcriptionEditorWrap) {
+    elements.transcriptionEditorWrap.classList.toggle('hidden', !transcriptionActive);
+  }
   if (elements.transcriptionText) {
-    elements.transcriptionText.classList.toggle('hidden', !transcriptionActive);
     elements.transcriptionText.contentEditable = transcriptionActive ? 'true' : 'false';
   }
   if (elements.historyText) {

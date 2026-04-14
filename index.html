@@ -178,11 +178,6 @@
 
       <!-- Transcription Output -->
       <div class="transcription-container" id="transcription-container">
-        <div id="transcription-overlay" class="spinner-overlay hidden">
-          <div class="spinner-visual-container">
-            <div id="transcription-spinner" class="rotating-spinner"></div>
-          </div>
-        </div>
         <div class="transcription-header">
           <div class="transcription-tabs" role="tablist" aria-label="Transcription views">
             <button class="transcription-tab active" id="transcription-tab-btn" role="tab" aria-selected="true">Transcription</button>
@@ -229,7 +224,14 @@
             </button>
           </div>
         </div>
-        <div class="transcription-text" id="transcription-text" contenteditable="true" data-placeholder="Your transcription will appear here..."></div>
+        <div class="transcription-editor-wrap" id="transcription-editor-wrap">
+          <div class="transcription-text" id="transcription-text" contenteditable="true" data-placeholder="Your transcription will appear here..."></div>
+          <div id="transcription-overlay" class="spinner-overlay hidden">
+            <div class="spinner-visual-container">
+              <div id="transcription-spinner" class="rotating-spinner"></div>
+            </div>
+          </div>
+        </div>
         <div class="history-text hidden" id="history-text">
           <div class="history-empty" id="history-empty">No transcription history yet.</div>
           <div class="history-list" id="history-list"></div>
