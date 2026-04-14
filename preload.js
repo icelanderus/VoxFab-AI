@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exitMiniMode: () => ipcRenderer.invoke('exit-mini-mode'),
   toggleRecordingMain: () => ipcRenderer.invoke('toggle-recording-main'),
   getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
+  /** macOS packaged: null or { shortStatus, toast } when Intel build is running on Apple Silicon (Rosetta). */
+  getMacosBinaryInstallIssue: () => ipcRenderer.invoke('get-macos-binary-install-issue'),
 
   // Events from main process
   onToggleRecording: (callback) => {

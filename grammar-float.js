@@ -100,6 +100,21 @@ function toggleGrammarCustomPrompt() {
 
 const FAB_DRAG_HINT = ' · Tap: panel · drag top bar to move';
 
+/** When the assistant opens after ⌘⇧E / highlight — `assets/sounds/floating-assistant.mp3` (fallback `.wav`). */
+function playFloatingAssistantOpenSound() {
+  const vol = 0.5;
+  const a = new Audio('assets/sounds/floating-assistant.mp3');
+  a.volume = vol;
+  const p = a.play();
+  if (p && typeof p.catch === 'function') {
+    p.catch(() => {
+      const b = new Audio('assets/sounds/floating-assistant.wav');
+      b.volume = vol;
+      void b.play().catch(() => {});
+    });
+  }
+}
+
 function applyFloatBgOpacity(raw) {
   const n = typeof raw === 'number' ? raw : parseFloat(raw);
   if (!Number.isFinite(n)) return;
@@ -398,6 +413,9 @@ window.addEventListener('keydown', (e) => {
 });
 
 grammarAPI.onInit(async (payload) => {
+  if (payload.uiSoundsEnabled !== false) {
+    playFloatingAssistantOpenSound();
+  }
   applyFloatBgOpacity(payload.bgOpacity !== undefined ? payload.bgOpacity : 0.85);
   selectedText = payload.text || '';
   lastResult = '';

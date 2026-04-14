@@ -64,7 +64,7 @@ const store = new ConfigStore({
   translateToEnglish: false,
   windowPosition: null,
   windowSize: { width: 340, height: 580 },
-  bgOpacity: 0.85,
+  bgOpacity: 1,
   bgBlur: 12,
   language: 'en',
   /** Win/Linux: open assistant when clipboard changes after copy. Default: false (user wants only explicit hotkeys). */
@@ -72,7 +72,9 @@ const store = new ConfigStore({
   /** Allow dragging edges to resize the floating assistant window. */
   grammarFloatResizable: true,
   /** While recording, show interim text (Web Speech + periodic engine transcribe). Off by default (saves CPU/API). */
-  livePreviewEnabled: false
+  livePreviewEnabled: false,
+  /** Mic on/off + floating assistant UI sounds. */
+  uiSoundsEnabled: true
 });
 
 let mainWindow = null;
@@ -196,7 +198,8 @@ function createWindow() {
     x: savedPosition ? savedPosition.x : screenWidth - winWidth - 20,
     y: savedPosition ? savedPosition.y : screenHeight - winHeight - 20,
     frame: false,
-    transparent: true,
+    transparent: false,
+    backgroundColor: '#0f172a',
     alwaysOnTop: true,
     resizable: true,
     skipTaskbar: false,
@@ -304,7 +307,19 @@ function createTray() {
 }
 
 function toggleRecording() {
+  const prevRecording = isRecording;
+  // Capture target app only when STARTING — on stop the frontmost app is often VoxFab itself.
+  if (process.platform === 'darwin' && !prevRecording) {
+    snapshotFrontmostPasteTarget();
+  }
   isRecording = !isRecording;
+  if (process.platform === 'darwin') {
+    if (!prevRecording && isRecording) {
+      macDuckPlaybackForRecordingStart();
+    } else if (prevRecording && !isRecording) {
+      macRestorePlaybackAfterRecordingStop();
+    }
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('toggle-recording', isRecording);
   }
@@ -317,7 +332,6 @@ function registerGlobalShortcut() {
   const isMac = process.platform === 'darwin';
 
   const onToggleHotkey = () => {
-    snapshotFrontmostPasteTarget();
     toggleRecording();
     
     // Only show main window if we are NOT in mini-fab mode
@@ -392,7 +406,8 @@ ipcMain.handle('get-settings', () => {
     bgBlur: store.get('bgBlur'),
     assistantEnabled: store.get('assistantEnabled') !== false,
     grammarFloatResizable: store.get('grammarFloatResizable') !== false,
-    livePreviewEnabled: store.get('livePreviewEnabled') === true
+    livePreviewEnabled: store.get('livePreviewEnabled') === true,
+    uiSoundsEnabled: store.get('uiSoundsEnabled') !== false
   };
 });
 
@@ -423,6 +438,9 @@ ipcMain.handle('save-settings', (event, settings) => {
   }
   if (settings.livePreviewEnabled !== undefined) {
     store.set('livePreviewEnabled', settings.livePreviewEnabled);
+  }
+  if (settings.uiSoundsEnabled !== undefined) {
+    store.set('uiSoundsEnabled', settings.uiSoundsEnabled);
   }
   return true;
 });
@@ -482,6 +500,50 @@ const { spawn, exec, spawnSync } = require('child_process');
 
 const OUR_PROCESS_NAMES = new Set(['Electron', 'VoxFab AI']);
 
+/** macOS: saved system volume while output is muted during voice recording (restore on stop / quit). */
+let macPlaybackDuckSaved = null;
+
+/** Mute system speaker/headphone output during recording so background music does not leak into the mic. */
+function macDuckPlaybackForRecordingStart() {
+  if (process.platform !== 'darwin' || macPlaybackDuckSaved) return;
+  const src = [
+    'set vs to get volume settings',
+    'set ov to output volume of vs',
+    'set om to output muted of vs',
+    'set volume with output muted true',
+    'return (ov as text) & "|" & (om as text)'
+  ].join('\n');
+  try {
+    const r = spawnSync('osascript', ['-e', src], { encoding: 'utf8', timeout: 5000 });
+    if (r.error || r.status !== 0) return;
+    const out = (r.stdout || '').trim();
+    const parts = out.split('|');
+    if (parts.length !== 2) return;
+    const vol = parseInt(parts[0], 10);
+    if (!Number.isFinite(vol)) return;
+    macPlaybackDuckSaved = {
+      outputVolume: vol,
+      outputMuted: parts[1] === 'true'
+    };
+  } catch (e) {
+    console.error('macDuckPlaybackForRecordingStart:', e.message);
+  }
+}
+
+function macRestorePlaybackAfterRecordingStop() {
+  if (process.platform !== 'darwin' || !macPlaybackDuckSaved) return;
+  const saved = macPlaybackDuckSaved;
+  macPlaybackDuckSaved = null;
+  const v = Math.max(0, Math.min(100, Math.round(Number(saved.outputVolume) || 0)));
+  const muteLine = saved.outputMuted ? 'set volume with output muted true' : 'set volume with output muted false';
+  const src = `set volume output volume ${v}\n${muteLine}`;
+  try {
+    spawnSync('osascript', ['-e', src], { encoding: 'utf8', timeout: 5000 });
+  } catch (e) {
+    console.error('macRestorePlaybackAfterRecordingStop:', e.message);
+  }
+}
+
 /** macOS: remember which app was frontmost when the user pressed a global shortcut (before our window may steal focus). */
 function snapshotFrontmostPasteTarget() {
   if (process.platform !== 'darwin') return;
@@ -500,6 +562,29 @@ function snapshotFrontmostPasteTarget() {
     console.error('snapshotFrontmostPasteTarget:', e.message);
   }
 }
+
+/**
+ * Packaged macOS: Intel (x64) binary running on Apple Silicon under Rosetta often breaks mic/MediaRecorder.
+ * Return a short hint for the renderer so we do not blame "recording too short".
+ */
+function getMacosBinaryInstallIssue() {
+  if (process.platform !== 'darwin' || !app.isPackaged) return null;
+  if (process.arch !== 'x64') return null;
+  try {
+    const r = spawnSync('sysctl', ['-n', 'sysctl.proc_translated'], { encoding: 'utf8', timeout: 2000 });
+    if (r.error || r.status !== 0) return null;
+    if (String(r.stdout || '').trim() !== '1') return null;
+  } catch {
+    return null;
+  }
+  return {
+    shortStatus: 'Wrong build: Intel app on Apple Silicon',
+    toast:
+      'You installed the Intel (x64) DMG on an Apple Silicon Mac. This copy runs under Rosetta and microphone capture often fails. Remove it and install the Apple Silicon (M1/M2/M3) DMG instead.'
+  };
+}
+
+ipcMain.handle('get-macos-binary-install-issue', () => getMacosBinaryInstallIssue());
 
 ipcMain.handle('capture-selection', async () => {
   markGrammarClipboardIgnore(3200);
@@ -1084,7 +1169,7 @@ function grammarFloatBgOpacityOrDefault() {
   const o = store.get('bgOpacity');
   if (typeof o === 'number' && Number.isFinite(o)) return o;
   const p = parseFloat(o);
-  return Number.isFinite(p) ? p : 0.85;
+  return Number.isFinite(p) ? p : 1;
 }
 
 /** Keep float UI glass opacity in sync with main app Settings → Transparency. */
@@ -1249,7 +1334,8 @@ async function pushGrammarFloatPayload(text, point, { focusWindow }) {
     summary: scan.summary || '',
     noApiKey: !!scan.noApiKey,
     scanError: scan.scanError || '',
-    bgOpacity: grammarFloatBgOpacityOrDefault()
+    bgOpacity: grammarFloatBgOpacityOrDefault(),
+    uiSoundsEnabled: store.get('uiSoundsEnabled') !== false
   };
   const push = () => {
     if (!win.isDestroyed()) {
@@ -1357,14 +1443,22 @@ ipcMain.handle('type-text', async (event, text) => {
   }
 
   try {
+    if (process.platform === 'darwin') {
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        return {
+          ok: false,
+          reason: 'accessibility',
+          stderr:
+            'Accessibility is OFF for this app in System Settings (toggle must be blue/on). macOS blocks System Events until you enable it.'
+        };
+      }
+    }
+
     markGrammarClipboardIgnore(5000);
     const previousClipboard = clipboard.readText();
     clipboard.writeText(text);
 
     const isWin = process.platform === 'win32';
-    if (!isWin) {
-      snapshotFrontmostPasteTarget();
-    }
     const handle = lastExternalWindowHandle || (isWin ? '0' : '');
     const winScriptPath = pathToScript('paste-helper.ps1');
 
@@ -1755,6 +1849,13 @@ ipcMain.handle('close-window', () => {
 });
 
 ipcMain.handle('set-recording-state', (event, s) => {
+  const prevRecording = isRecording;
+  if (process.platform === 'darwin' && s === true && !prevRecording) {
+    snapshotFrontmostPasteTarget();
+    macDuckPlaybackForRecordingStart();
+  } else if (process.platform === 'darwin' && s === false && prevRecording) {
+    macRestorePlaybackAfterRecordingStop();
+  }
   isRecording = s;
   if (miniFabWindow && !miniFabWindow.isDestroyed()) {
     miniFabWindow.webContents.send('toggle-recording', isRecording);
@@ -1790,9 +1891,9 @@ function promptPackagedMacAccessibilityIfNeeded() {
         title: 'VoxFab AI',
         message: 'Turn ON Accessibility for “VoxFab AI”',
         detail:
-          'Auto-paste only works if this app is allowed in System Settings → Privacy & Security → Accessibility.\n\nWhen you run “npm run dev”, macOS lists “Electron” or “Terminal” — that is a different entry. The installed app needs its own toggle ON (blue).',
+          'Auto-paste only works if this app is allowed in System Settings → Privacy & Security → Accessibility.\n\nThe row for “VoxFab AI” must show the switch ON (blue). Gray/left = still off.\n\nWhen you run “npm run dev”, macOS lists “Electron” or “Terminal” — that is a different entry than the installed app.',
         buttons: ['Open Accessibility settings', 'OK'],
-        defaultId: 0,
+        defaultId: 1,
         cancelId: 1
       })
       .then(({ response }) => {
@@ -1822,6 +1923,7 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
+  macRestorePlaybackAfterRecordingStop();
   globalShortcut.unregisterAll();
   stopWindowMonitor();
   if (grammarLoaderWindow && !grammarLoaderWindow.isDestroyed()) {
