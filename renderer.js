@@ -41,7 +41,11 @@ let state = {
   /** Set at init on macOS when Intel .app runs on Apple Silicon (Rosetta). */
   binaryInstallIssue: null,
   /** When set to `silence-timeout`, `processAudio` shows a single “no speech” message (auto-stop). */
-  recordingStopReason: null
+  recordingStopReason: null,
+  /** Hotkey Customization */
+  isEditingHotkeys: false,
+  pendingAssistantHotkey: '',
+  pendingRecordHotkey: ''
 };
 
 const ICONS = {
@@ -222,33 +226,147 @@ const elements = {
 function renderHotkeyHint() {
   if (!elements.hotkeyHint) return;
   const isMac = window.electronAPI.platform === 'darwin';
-  if (isMac) {
+
+  if (state.isEditingHotkeys) {
     elements.hotkeyHint.innerHTML = `
-      <span class="hotkey-hint-inner">
-        <span class="hotkey-hint-group">
-          <kbd>⌘</kbd><kbd>⇧</kbd><kbd>E</kbd>
-          <span class="hotkey-hint-cap">Assistant</span>
-        </span>
-        <span class="hotkey-hint-gap">·</span>
-        <span class="hotkey-hint-group">
-          <kbd>⌘</kbd><kbd>⇧</kbd><kbd>Space</kbd>
-          <span class="hotkey-hint-cap">Record</span>
-        </span>
-      </span>`;
-  } else {
-    elements.hotkeyHint.innerHTML = `
-      <span class="hotkey-hint-inner">
-        <span class="hotkey-hint-group">
-          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>E</kbd>
-          <span class="hotkey-hint-cap">Assistant</span>
-        </span>
-        <span class="hotkey-hint-gap">·</span>
-        <span class="hotkey-hint-group">
-          <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>Space</kbd>
-          <span class="hotkey-hint-cap">Record</span>
-        </span>
-      </span>`;
+      <div class="hotkey-edit-mode">
+        <div class="hotkey-input-box">
+          <span class="hotkey-input-label">Assistant</span>
+          <input type="text" class="hotkey-input" id="assistant-hotkey-input" 
+                 placeholder="Press keys..." value="${state.pendingAssistantHotkey}" readonly>
+        </div>
+        <div class="hotkey-input-box">
+          <span class="hotkey-input-label">Record</span>
+          <input type="text" class="hotkey-input" id="record-hotkey-input" 
+                 placeholder="Press keys..." value="${state.pendingRecordHotkey}" readonly>
+        </div>
+        <div class="hotkey-edit-actions">
+          <button class="hotkey-action-btn hotkey-save-btn" id="hotkey-save-btn" title="Save">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button class="hotkey-action-btn hotkey-cancel-btn" id="hotkey-cancel-btn" title="Cancel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Re-attach listeners for the inline UI
+    const assistantInp = document.getElementById('assistant-hotkey-input');
+    const recordInp = document.getElementById('record-hotkey-input');
+    const saveBtn = document.getElementById('hotkey-save-btn');
+    const cancelBtn = document.getElementById('hotkey-cancel-btn');
+
+    if (assistantInp) assistantInp.addEventListener('keydown', (e) => captureHotkey(e, 'assistant'));
+    if (recordInp) recordInp.addEventListener('keydown', (e) => captureHotkey(e, 'record'));
+    if (saveBtn) saveBtn.addEventListener('click', saveCustomHotkeys);
+    if (cancelBtn) cancelBtn.addEventListener('click', toggleHotkeyEdit);
+
+    // Focus the first input
+    assistantInp?.focus();
+    return;
   }
+
+  // Normal View Mode
+  const assistantStr = state.settings.assistantHotkey || (isMac ? 'Command+Shift+E' : 'Ctrl+Shift+E');
+  const recordStr = state.settings.recordHotkey || (isMac ? 'Command+Shift+Space' : 'Ctrl+Shift+Space');
+
+  const formatKey = (k) => k.replace(/Command/g, '⌘').replace(/Shift/g, '⇧').replace(/\+/g, '</kbd><kbd>');
+
+  elements.hotkeyHint.innerHTML = `
+      <span class="hotkey-hint-inner">
+        <span class="hotkey-hint-group">
+          <kbd>${formatKey(assistantStr)}</kbd>
+          <span class="hotkey-hint-cap">Assistant</span>
+        </span>
+        <span class="hotkey-hint-gap">·</span>
+        <span class="hotkey-hint-group">
+          <kbd>${formatKey(recordStr)}</kbd>
+          <span class="hotkey-hint-cap">Record</span>
+        </span>
+      </span>
+      <button class="hotkey-settings-btn" id="hotkey-settings-btn" title="Edit Shortcuts">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.72V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+  `;
+
+  document.getElementById('hotkey-settings-btn')?.addEventListener('click', toggleHotkeyEdit);
+}
+
+async function toggleHotkeyEdit() {
+  state.isEditingHotkeys = !state.isEditingHotkeys;
+  if (state.isEditingHotkeys) {
+    state.pendingAssistantHotkey = state.settings.assistantHotkey || (window.electronAPI.platform === 'darwin' ? 'Command+Shift+E' : 'Ctrl+Shift+E');
+    state.pendingRecordHotkey = state.settings.recordHotkey || (window.electronAPI.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+Space');
+    // Disable global shortcuts while editing to prevent interference
+    await window.electronAPI.disableGlobalShortcuts();
+  } else {
+    // Re-enable if we canceled
+    await window.electronAPI.enableGlobalShortcuts();
+  }
+  renderHotkeyHint();
+}
+
+function captureHotkey(e, type) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // If it's JUST a modifier key being pressed, we can show it but don't finalize yet
+  const ignore = ['Control', 'Shift', 'Alt', 'Meta', 'CapsLock'];
+  
+  const keys = [];
+  // Use e.code or e.key? e.key is localized, e.code is physical.
+  // Electron globalShortcut uses accelerator strings which are closer to e.key (e.g. "Command", "Ctrl", "Shift", "Plus").
+  
+  if (e.ctrlKey) keys.push('Ctrl');
+  if (e.altKey) keys.push('Alt');
+  if (e.shiftKey) keys.push('Shift');
+  if (e.metaKey) keys.push(window.electronAPI.platform === 'darwin' ? 'Command' : 'Super');
+
+  if (!ignore.includes(e.key)) {
+    let k = e.key;
+    if (k === ' ') k = 'Space';
+    else if (k === 'Control') k = 'Ctrl';
+    else if (k === 'AltGraph') k = 'Alt';
+    
+    // Convert to Electron Accelerator names if necessary
+    if (k.length === 1) {
+      k = k.toUpperCase();
+    }
+    
+    // Add the main key if it's not a modifier already in the list
+    if (!keys.includes(k)) {
+      keys.push(k);
+    }
+  } else {
+    // If only modifier is pressed, we don't want to save "Ctrl+" yet, 
+    // but the user wants to see what they are pressing.
+    // For simplicity, we only update state if a non-modifier is pressed
+    return; 
+  }
+
+  const result = keys.join('+');
+  if (type === 'assistant') {
+    state.pendingAssistantHotkey = result;
+  } else {
+    state.pendingRecordHotkey = result;
+  }
+  renderHotkeyHint();
+}
+
+async function saveCustomHotkeys() {
+  const settings = {
+    ...state.settings,
+    assistantHotkey: state.pendingAssistantHotkey,
+    recordHotkey: state.pendingRecordHotkey
+  };
+  await window.electronAPI.saveSettings(settings);
+  state.settings = settings;
+  state.isEditingHotkeys = false;
+  // Re-enable shortcuts (this happens in main.js save-settings handler too, but double-safe)
+  await window.electronAPI.enableGlobalShortcuts();
+  renderHotkeyHint();
+  showToast('Global shortcuts updated.', 'success');
 }
 
 // ============================================

@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** macOS packaged: null or { shortStatus, toast } when Intel build is running on Apple Silicon (Rosetta). */
   getMacosBinaryInstallIssue: () => ipcRenderer.invoke('get-macos-binary-install-issue'),
 
+  disableGlobalShortcuts: () => ipcRenderer.invoke('disable-global-shortcuts'),
+  enableGlobalShortcuts: () => ipcRenderer.invoke('enable-global-shortcuts'),
+
   // Events from main process
   onToggleRecording: (callback) => {
     ipcRenderer.on('toggle-recording', (event, isRecording) => callback(isRecording));

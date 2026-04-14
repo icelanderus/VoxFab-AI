@@ -433,6 +433,154 @@ html.platform-darwin .title-bar {
   margin-bottom: 8px;
 }
 
+.hotkey-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 8px 12px;
+  opacity: 0.6;
+  border-top: 1px solid var(--glass-border);
+  margin-top: auto;
+  letter-spacing: 0.02em;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  position: relative;
+  transition: opacity 0.2s ease;
+}
+
+.hotkey-hint:hover {
+  opacity: 1;
+}
+
+.hotkey-hint-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hotkey-hint-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hotkey-hint-gap {
+  opacity: 0.3;
+  margin: 0 2px;
+}
+
+.hotkey-hint-cap {
+  margin-left: 2px;
+}
+
+.hotkey-hint kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.3);
+}
+
+/* Gear Icon */
+.hotkey-settings-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+.hotkey-settings-btn:hover {
+  opacity: 1;
+  color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Edit Mode */
+.hotkey-edit-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+.hotkey-input-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.hotkey-input-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent-primary);
+  opacity: 0.8;
+}
+
+.hotkey-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 10px;
+  padding: 3px 6px;
+  width: 110px;
+  outline: none;
+  cursor: pointer;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.hotkey-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.hotkey-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+.hotkey-action-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.hotkey-save-btn { color: #10b981; }
+.hotkey-save-btn:hover { background: rgba(16, 185, 129, 0.1); }
+.hotkey-cancel-btn { color: #ef4444; }
+.hotkey-cancel-btn:hover { background: rgba(239, 68, 68, 0.1); }
+
 .quick-setting-item {
   display: flex;
   flex-direction: column;

@@ -336,6 +336,12 @@ function toggleRecording() {
 
 function registerGlobalShortcut() {
   const isMac = process.platform === 'darwin';
+  globalShortcut.unregisterAll();
+
+  // Load from store or use defaults
+  const recordHotkey = store.get('recordHotkey') || (isMac ? 'Command+Shift+Space' : 'Ctrl+Shift+Space');
+  const assistantHotkey = store.get('assistantHotkey') || (isMac ? 'Command+Shift+E' : 'Ctrl+Shift+E');
+  const analyzeHotkey = store.get('analyzeHotkey') || (isMac ? 'Command+Alt+A' : 'Ctrl+Alt+A');
 
   const onToggleHotkey = () => {
     toggleRecording();
@@ -366,35 +372,22 @@ function registerGlobalShortcut() {
     openGrammarFloatFromShortcut().catch((e) => console.error('grammar float:', e));
   };
 
-  if (isMac) {
-    if (!globalShortcut.register('Command+Shift+Space', onToggleHotkey)) {
-      console.error('Failed to register Command+Shift+Space');
-    }
-    if (!globalShortcut.register('Ctrl+Shift+Space', onToggleHotkey)) {
-      console.error('Failed to register Ctrl+Shift+Space on macOS');
-    }
-    if (!globalShortcut.register('Command+Alt+A', onAnalyzeHotkey)) {
-      console.error('Failed to register Command+Alt+A');
-    }
-    if (!globalShortcut.register('Ctrl+Alt+A', onAnalyzeHotkey)) {
-      console.error('Failed to register Ctrl+Alt+A on macOS');
-    }
-    if (!globalShortcut.register('Command+Shift+E', onGrammarHotkey)) {
-      console.error('Failed to register Command+Shift+E');
-    }
-    if (!globalShortcut.register('Ctrl+Shift+E', onGrammarHotkey)) {
-      console.error('Failed to register Ctrl+Shift+E (grammar) on macOS');
-    }
-  } else {
-    if (!globalShortcut.register('Ctrl+Shift+Space', onToggleHotkey)) {
-      console.error('Failed to register Ctrl+Shift+Space');
-    }
-    if (!globalShortcut.register('Ctrl+Alt+A', onAnalyzeHotkey)) {
-      console.error('Failed to register Ctrl+Alt+A');
-    }
-    if (!globalShortcut.register('Ctrl+Shift+E', onGrammarHotkey)) {
-      console.error('Failed to register Ctrl+Shift+E (grammar)');
-    }
+  // Register Record
+  if (!globalShortcut.register(recordHotkey, onToggleHotkey)) {
+    console.error(`Failed to register recordHotkey: ${recordHotkey}`);
+  }
+  // Register Assistant
+  if (!globalShortcut.register(assistantHotkey, onGrammarHotkey)) {
+    console.error(`Failed to register assistantHotkey: ${assistantHotkey}`);
+  }
+  // Register Analyze
+  if (!globalShortcut.register(analyzeHotkey, onAnalyzeHotkey)) {
+    console.error(`Failed to register analyzeHotkey: ${analyzeHotkey}`);
+  }
+
+  // Legacy/Fallback for Mac Ctrl vs Cmd if needed (optional, keeping minimal as requested)
+  if (isMac && recordHotkey === 'Command+Shift+Space') {
+    globalShortcut.register('Ctrl+Shift+Space', onToggleHotkey);
   }
 }
 
@@ -413,7 +406,9 @@ ipcMain.handle('get-settings', () => {
     assistantEnabled: store.get('assistantEnabled') !== false,
     grammarFloatResizable: store.get('grammarFloatResizable') !== false,
     livePreviewEnabled: store.get('livePreviewEnabled') === true,
-    uiSoundsEnabled: store.get('uiSoundsEnabled') !== false
+    uiSoundsEnabled: store.get('uiSoundsEnabled') !== false,
+    recordHotkey: store.get('recordHotkey') || (process.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+Space'),
+    assistantHotkey: store.get('assistantHotkey') || (process.platform === 'darwin' ? 'Command+Shift+E' : 'Ctrl+Shift+E')
   };
 });
 
@@ -448,6 +443,21 @@ ipcMain.handle('save-settings', (event, settings) => {
   if (settings.uiSoundsEnabled !== undefined) {
     store.set('uiSoundsEnabled', settings.uiSoundsEnabled);
   }
+  if (settings.recordHotkey !== undefined || settings.assistantHotkey !== undefined) {
+    if (settings.recordHotkey !== undefined) store.set('recordHotkey', settings.recordHotkey);
+    if (settings.assistantHotkey !== undefined) store.set('assistantHotkey', settings.assistantHotkey);
+    registerGlobalShortcut();
+  }
+  return true;
+});
+
+ipcMain.handle('disable-global-shortcuts', () => {
+  globalShortcut.unregisterAll();
+  return true;
+});
+
+ipcMain.handle('enable-global-shortcuts', () => {
+  registerGlobalShortcut();
   return true;
 });
 
