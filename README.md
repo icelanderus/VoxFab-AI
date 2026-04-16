@@ -35,8 +35,12 @@ Highlight any text and press `Ctrl+Shift+E` (`⌘⇧E`) to fix grammar, change t
 
 ![The Assistant that Follows You](assets/following-assistant.png)
 
-### 🖼️ OCR Capabilities
-Extract text from images or screen regions and process it with AI. Powerful for capturing information from videos, non-selectable PDFs, or legacy applications.
+### 🖥️ Capture Anything On Your Screen
+Not limited to images. VoxFab takes a high-precision capture of any designated screen area and extracts text instantly—from system windows, locked PDFs, or videos.
+
+- **Screen-Wide Capture**: Just drag a box over any part of your screen. VoxFab captures a shot and extracts text from any application or OS setting.
+- **Windows & Mac Support**: Full cross-platform compatibility. Get the same high-speed AI extraction performance regardless of your operating system.
+- **Beyond Images**: Works with videos, zoom calls, locked documents, or system dialogs. If you can see it, you can capture and extract it.
 
 ### 🔘 Mini FAB Mode
 Collapse VoxFab into a small, floating action button that stays out of your way but always within reach. Drag it anywhere, and one click brings the full power back.
