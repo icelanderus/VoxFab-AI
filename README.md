@@ -36,6 +36,8 @@ Highlight any text and press `Ctrl+Shift+E` (`⌘⇧E`) to fix grammar, change t
 ![The Assistant that Follows You](assets/following-assistant.png)
 
 ### 🖥️ Capture Anything On Your Screen
+![Capture Anything On Your Screen](assets/screen-capture.png)
+
 Not limited to images. VoxFab takes a high-precision capture of any designated screen area and extracts text instantly—from system windows, locked PDFs, or videos.
 
 - **Screen-Wide Capture**: Just drag a box over any part of your screen. VoxFab captures a shot and extracts text from any application or OS setting.
