@@ -45,9 +45,18 @@ Not limited to images. VoxFab takes a high-precision capture of any designated s
 ![Capture Anything On Your Screen](assets/screen-capture.png)
 
 ### 🔘 Mini FAB Mode
-Collapse VoxFab into a small, floating action button that stays out of your way but always within reach. Drag it anywhere, and one click brings the full power back.
+Collapse VoxFab into a small, floating action button that stays out of your way but always within reach. Drag it anywhere, and one click brings the full power back—now with real-time voice-reactive waveform bars flanking the button while you speak.
 
 ![Seamless Transition to FAB](assets/fab-mode.png)
+
+### 📑 Docked Edge Tab & Live Waveforms
+Need even less screen footprint? Dock VoxFab flush against any edge of your monitor (**left, right, top, or bottom**) as a sleek bookmark tab:
+
+- **Snap to Any Screen Edge**: Drag the tab smoothly along or across screen edges; clicks outside the tab pass right through to your underlying apps.
+- **Real-Time Voice Waveforms**: Live microphone level bars react dynamically to your voice across the Main Window, Floating Mini FAB, and Docked Edge Tab.
+- **Single-Key & `Fn` Shortcuts**: Bind a single tap of `Fn` or a lone modifier key (`Right ⌘`, `Right ⌥`, etc.) for instant hands-free dictation.
+
+![Docked Edge Tab and Live Waveforms](assets/edge-tab-mode.png)
 
 ### 🔒 Privacy Focused
 Use local Whisper engines for privacy or connect your own OpenAI API key for maximum accuracy and cloud features.

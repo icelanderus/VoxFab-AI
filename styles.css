@@ -392,33 +392,8 @@ html.platform-darwin .title-bar {
   height: 6px;
   border-radius: 2px;
   background: var(--accent-gradient);
-  transition: height var(--transition-fast);
-}
-
-.waveform.active .wave-bar {
-  animation: wave 0.8s ease-in-out infinite;
-}
-
-.waveform.active .wave-bar:nth-child(1) { animation-delay: 0s; }
-.waveform.active .wave-bar:nth-child(2) { animation-delay: 0.1s; }
-.waveform.active .wave-bar:nth-child(3) { animation-delay: 0.2s; }
-.waveform.active .wave-bar:nth-child(4) { animation-delay: 0.3s; }
-.waveform.active .wave-bar:nth-child(5) { animation-delay: 0.4s; }
-.waveform.active .wave-bar:nth-child(6) { animation-delay: 0.5s; }
-.waveform.active .wave-bar:nth-child(7) { animation-delay: 0.6s; }
-
-/* Flip direction for left waveform */
-#waveform-left.active .wave-bar:nth-child(1) { animation-delay: 0.6s; }
-#waveform-left.active .wave-bar:nth-child(2) { animation-delay: 0.5s; }
-#waveform-left.active .wave-bar:nth-child(3) { animation-delay: 0.4s; }
-#waveform-left.active .wave-bar:nth-child(4) { animation-delay: 0.3s; }
-#waveform-left.active .wave-bar:nth-child(5) { animation-delay: 0.2s; }
-#waveform-left.active .wave-bar:nth-child(6) { animation-delay: 0.1s; }
-#waveform-left.active .wave-bar:nth-child(7) { animation-delay: 0s; }
-
-@keyframes wave {
-  0%, 100% { height: 6px; }
-  50% { height: 22px; }
+  /* Heights are set from the live mic level (renderer.js setupAudioVisualization). */
+  transition: height 60ms linear;
 }
 
 /* Quick Settings Row */

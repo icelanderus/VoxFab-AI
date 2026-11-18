@@ -1,0 +1,185 @@
+:root {
+  --accent-gradient: linear-gradient(135deg, #00D4FF, #8B5CF6);
+  --error-gradient: linear-gradient(135deg, #EF4444, #DC2626);
+  --tab-radius: 12px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+  user-select: none;
+}
+
+/*
+ * The window is a fixed transparent square (main.js EDGE_TAB_WINDOW_SIZE) that is only moved,
+ * never resized. Along the edge: [tab][expand button on hover], starting at the window's left/top.
+ * On the edge side a transparent --overhang strip reaches past the screen edge, where macOS rounds
+ * the window corners, so the tab's corners touching the edge stay square.
+ * Sizes must match main.js (EDGE_TAB_*).
+ */
+body {
+  --overhang: 14px;
+  --tab-thickness: 30px;
+  --tab-len: 56px;
+  display: flex;
+  justify-content: flex-start;
+}
+body.recording { --tab-len: 140px; }
+body.edge-bottom { align-items: flex-end; padding-bottom: var(--overhang); }
+body.edge-top { align-items: flex-start; padding-top: var(--overhang); }
+body.edge-left { flex-direction: column; align-items: flex-start; padding-left: var(--overhang); }
+body.edge-right { flex-direction: column; align-items: flex-end; padding-right: var(--overhang); }
+
+.edge-tab {
+  flex: 0 0 var(--tab-len);
+  height: var(--tab-thickness);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 6px;
+  background: var(--accent-gradient);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: grab;
+  transition: background 0.2s ease;
+}
+
+body.edge-left .edge-tab,
+body.edge-right .edge-tab {
+  height: auto;
+  width: var(--tab-thickness);
+}
+
+body.dragging .edge-tab {
+  cursor: grabbing;
+}
+
+/* Bookmark shape: flat against the screen edge, rounded on the inner side. */
+body.edge-bottom .edge-tab {
+  border-radius: var(--tab-radius) var(--tab-radius) 0 0;
+  border-bottom: none;
+}
+body.edge-top .edge-tab {
+  border-radius: 0 0 var(--tab-radius) var(--tab-radius);
+  border-top: none;
+}
+body.edge-left .edge-tab {
+  border-radius: 0 var(--tab-radius) var(--tab-radius) 0;
+  border-left: none;
+}
+body.edge-right .edge-tab {
+  border-radius: var(--tab-radius) 0 0 var(--tab-radius);
+  border-right: none;
+}
+
+body.edge-left .edge-tab,
+body.edge-right .edge-tab {
+  flex-direction: column;
+  padding: 6px 0;
+}
+
+body.recording .edge-tab {
+  background: var(--error-gradient);
+}
+
+.tab-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Expand-to-window button: outside the tab, after its end; main.js widens the window on hover. */
+.tab-btn {
+  display: none;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  /* centred on the tab's thickness: (30 - 20) / 2 = 5px from the screen edge */
+  margin: 0 0 5px 6px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(30, 30, 45, 0.95);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+body.hover .tab-btn {
+  display: flex;
+}
+
+.tab-btn:hover {
+  transform: scale(1.12);
+}
+
+body.edge-top .tab-btn { margin: 5px 0 0 6px; }
+body.edge-left .tab-btn { margin: 6px 0 0 5px; }
+body.edge-right .tab-btn { margin: 6px 5px 0 0; }
+
+.tab-btn:active {
+  transform: scale(0.9);
+}
+
+/* Voice-reactive waves while recording */
+.tab-waveform {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  pointer-events: none;
+}
+
+body.recording .tab-waveform {
+  display: flex;
+}
+
+body.edge-left .tab-waveform,
+body.edge-right .tab-waveform {
+  flex-direction: column;
+}
+
+.tab-waveform .wave-bar {
+  width: 3px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.92);
+  transition: height 60ms linear, width 60ms linear;
+}
+
+body.edge-left .tab-waveform .wave-bar,
+body.edge-right .tab-waveform .wave-bar {
+  width: 4px;
+  height: 3px;
+}
+
+.tab-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #ffffff, rgba(255, 255, 255, 0.15), #ffffff);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 5px, #000 6px);
+  mask: radial-gradient(circle closest-side, transparent 5px, #000 6px);
+  animation: tabspin 0.75s linear infinite;
+}
+
+@keyframes tabspin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.hidden {
+  display: none !important;
+}

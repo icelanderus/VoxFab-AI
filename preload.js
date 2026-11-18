@@ -32,6 +32,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
   enterMiniMode: () => ipcRenderer.invoke('enter-mini-mode'),
   exitMiniMode: () => ipcRenderer.invoke('exit-mini-mode'),
+  /** Docked edge tab (third collapsed mode). */
+  enterEdgeTabMode: () => ipcRenderer.invoke('enter-edge-tab-mode'),
+  /** true = pointer over the tab/button (take clicks); false = let clicks pass through. */
+  edgeTabInteractive: (on) => ipcRenderer.send('edge-tab-interactive', on),
+  /** phase: 'start' | 'move' | 'end' | 'cancel' */
+  edgeTabDrag: (phase) => ipcRenderer.send('edge-tab-drag', phase),
+  onEdgeTabEdge: (callback) => {
+    ipcRenderer.on('edge-tab-edge', (_event, edge) => callback(edge));
+  },
   toggleRecordingMain: () => ipcRenderer.invoke('toggle-recording-main'),
   getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
   /** macOS packaged: null or { shortStatus, toast } when Intel build is running on Apple Silicon (Rosetta). */
@@ -41,6 +50,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enableGlobalShortcuts: () => ipcRenderer.invoke('enable-global-shortcuts'),
 
   // Events from main process
+  /** macOS: Fn / lone modifier tap seen while the shortcut editor is open. */
+  onNativeHotkeyCaptured: (callback) => {
+    ipcRenderer.on('native-hotkey-captured', (_event, name) => callback(name));
+  },
+  /** Mic levels (0..1 per bar) from the recording window, forwarded to the mini FAB. */
+  sendAudioLevels: (levels) => ipcRenderer.send('audio-levels', levels),
+  onAudioLevels: (callback) => {
+    ipcRenderer.on('audio-levels', (_event, levels) => callback(levels));
+  },
   onToggleRecording: (callback) => {
     ipcRenderer.on('toggle-recording', (event, isRecording) => callback(isRecording));
   },

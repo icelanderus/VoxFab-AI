@@ -29,10 +29,9 @@
     },
     "win": {
       "target": [
-        "zip",
-        "portable"
+        "dir"
       ],
-      "sign": null
+      "icon": "voxfabAI-launcher-icon.png"
     },
     "asar": true,
     "asarUnpack": [

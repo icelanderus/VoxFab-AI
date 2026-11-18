@@ -18,6 +18,8 @@ let state = {
   audioStream: null,
   audioContext: null,
   analyser: null,
+  /** Interval driving the voice-reactive wave bars while recording. */
+  vizTimerId: null,
   settings: {},
   previousText: null,
   capturedContext: null,
@@ -221,7 +223,8 @@ const elements = {
   grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle'),
   livePreviewToggleSettings: document.getElementById('live-preview-toggle-settings'),
   uiSoundsToggleSettings: document.getElementById('ui-sounds-toggle-settings'),
-  collapseBtn: document.getElementById('collapse-btn')
+  collapseBtn: document.getElementById('collapse-btn'),
+  dockTabBtn: document.getElementById('dock-tab-btn')
 };
 
 function renderHotkeyHint() {
@@ -234,12 +237,12 @@ function renderHotkeyHint() {
         <div class="hotkey-input-box">
           <span class="hotkey-input-label">Assistant</span>
           <input type="text" class="hotkey-input" id="assistant-hotkey-input" 
-                 placeholder="Press keys..." value="${state.pendingAssistantHotkey}" readonly>
+                 placeholder="Press keys..." value="${SOLO_HOTKEY_LABELS[state.pendingAssistantHotkey] || state.pendingAssistantHotkey}" readonly>
         </div>
         <div class="hotkey-input-box">
           <span class="hotkey-input-label">Record</span>
           <input type="text" class="hotkey-input" id="record-hotkey-input" 
-                 placeholder="Press keys..." value="${state.pendingRecordHotkey}" readonly>
+                 placeholder="Press keys..." value="${SOLO_HOTKEY_LABELS[state.pendingRecordHotkey] || state.pendingRecordHotkey}" readonly>
         </div>
         <div class="hotkey-edit-actions">
           <button class="hotkey-action-btn hotkey-save-btn" id="hotkey-save-btn" title="Save">
@@ -272,7 +275,9 @@ function renderHotkeyHint() {
   const assistantStr = state.settings.assistantHotkey || (isMac ? 'Command+Shift+E' : 'Ctrl+Shift+E');
   const recordStr = state.settings.recordHotkey || (isMac ? 'Command+Shift+Space' : 'Ctrl+Shift+Space');
 
-  const formatKey = (k) => k.replace(/Command/g, '⌘').replace(/Shift/g, '⇧').replace(/\+/g, '</kbd><kbd>');
+  const formatKey = (k) =>
+    SOLO_HOTKEY_LABELS[k] ||
+    k.replace(/Command/g, '⌘').replace(/Shift/g, '⇧').replace(/\+/g, '</kbd><kbd>');
 
   elements.hotkeyHint.innerHTML = `
       <span class="hotkey-hint-inner">
@@ -306,6 +311,30 @@ async function toggleHotkeyEdit() {
     await window.electronAPI.enableGlobalShortcuts();
   }
   renderHotkeyHint();
+}
+
+/** Single-key hotkeys macOS can only see through the native watcher (names match MAC_SOLO_KEYS in main.js). */
+const SOLO_HOTKEY_LABELS = {
+  Fn: 'fn',
+  LeftCommand: 'Left ⌘',
+  RightCommand: 'Right ⌘',
+  LeftOption: 'Left ⌥',
+  RightOption: 'Right ⌥',
+  LeftShift: 'Left ⇧',
+  RightShift: 'Right ⇧',
+  LeftCtrl: 'Left ⌃',
+  RightCtrl: 'Right ⌃'
+};
+
+/** Fn / lone modifier tap reported by main while the shortcut editor is open. */
+function onNativeHotkeyCaptured(name) {
+  if (!state.isEditingHotkeys || !SOLO_HOTKEY_LABELS[name]) return;
+  const activeId = document.activeElement && document.activeElement.id;
+  if (activeId === 'assistant-hotkey-input') state.pendingAssistantHotkey = name;
+  else if (activeId === 'record-hotkey-input') state.pendingRecordHotkey = name;
+  else return;
+  renderHotkeyHint();
+  document.getElementById(activeId)?.focus();
 }
 
 function captureHotkey(e, type) {
@@ -353,6 +382,8 @@ function captureHotkey(e, type) {
     state.pendingRecordHotkey = result;
   }
   renderHotkeyHint();
+  // Keep focus on the field being edited (re-render replaces the inputs).
+  document.getElementById(type === 'assistant' ? 'assistant-hotkey-input' : 'record-hotkey-input')?.focus();
 }
 
 async function saveCustomHotkeys() {
@@ -402,6 +433,10 @@ async function init() {
       window.electronAPI.platform === 'darwin'
         ? 'Click to start recording (⌘⇧Space or Ctrl⇧Space)'
         : 'Click to start recording (Ctrl+Shift+Space)';
+  }
+
+  if (typeof window.electronAPI.onNativeHotkeyCaptured === 'function') {
+    window.electronAPI.onNativeHotkeyCaptured(onNativeHotkeyCaptured);
   }
 
   // Listen for global hotkey from main process
@@ -489,6 +524,11 @@ async function loadSettings() {
   if (elements.bgOpacitySlider) elements.bgOpacitySlider.value = opacity;
   applyAppearance(opacity);
 
+  if (state.settings.version) {
+    const vt = document.getElementById('settings-version-text');
+    if (vt) vt.textContent = `VoxFab AI v${state.settings.version}`;
+  }
+
   updateEngineBadge();
   updateApiKeyVisibility();
   updateLanguageState();
@@ -539,6 +579,7 @@ function setupEventListeners() {
   if (elements.minimizeBtn) elements.minimizeBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
   if (elements.closeBtn) elements.closeBtn.addEventListener('click', () => window.electronAPI.closeWindow());
   if (elements.collapseBtn) elements.collapseBtn.addEventListener('click', () => window.electronAPI.enterMiniMode());
+  if (elements.dockTabBtn) elements.dockTabBtn.addEventListener('click', () => window.electronAPI.enterEdgeTabMode());
   // Settings
   if (elements.settingsToggle) elements.settingsToggle.addEventListener('click', toggleSettings);
   if (elements.settingsBack) elements.settingsBack.addEventListener('click', toggleSettings);
@@ -1491,17 +1532,47 @@ function setupAudioVisualization(stream, opts = {}) {
 
   const bufferLength = state.analyser.frequencyBinCount;
   const dataArray = new Uint8Array(bufferLength);
-  const bars = document.querySelectorAll('.wave-bar');
+  // Bars ordered from the mic outward: index 0 = closest to the button.
+  const leftBars = Array.from(elements.waveformLeft.querySelectorAll('.wave-bar')).reverse();
+  const rightBars = Array.from(elements.waveformRight.querySelectorAll('.wave-bar'));
+  const barCount = Math.max(leftBars.length, rightBars.length);
+  const bandEdges = voiceBandEdges(barCount, state.audioContext.sampleRate, state.analyser.fftSize);
+  const levels = new Array(barCount).fill(0);
+  if (state.vizTimerId) clearInterval(state.vizTimerId);
 
+  function stopViz() {
+    if (state.vizTimerId) {
+      clearInterval(state.vizTimerId);
+      state.vizTimerId = null;
+    }
+    resetWaveBars();
+  }
+
+  // setInterval, not requestAnimationFrame: rAF pauses while the main window is hidden (mini FAB mode),
+  // which froze the waves and the silence auto-stop.
   function animate() {
-    if (!state.isRecording || silenceAutoStopFired) return;
+    if (!state.isRecording || silenceAutoStopFired || !state.analyser) {
+      stopViz();
+      return;
+    }
     state.analyser.getByteFrequencyData(dataArray);
 
-    bars.forEach((bar, i) => {
-      const value = dataArray[i * 2] || 0;
-      const height = Math.max(6, (value / 255) * 24);
-      bar.style.height = `${height}px`;
-    });
+    for (let i = 0; i < barCount; i++) {
+      const [lo, hi] = bandEdges[i];
+      let sum = 0;
+      for (let b = lo; b < hi; b++) sum += dataArray[b];
+      const avg = sum / Math.max(1, hi - lo);
+      // Byte spectrum is dB-scaled; ignore the noise floor, then ease so quiet speech still moves bars.
+      const target = Math.pow(Math.max(0, (avg - WAVE_NOISE_FLOOR) / (255 - WAVE_NOISE_FLOOR)), 0.7);
+      const k = target > levels[i] ? 0.6 : 0.2; // fast attack, slower release
+      levels[i] += (target - levels[i]) * k;
+      const height = `${WAVE_MIN_PX + levels[i] * (WAVE_MAX_PX - WAVE_MIN_PX)}px`;
+      if (leftBars[i]) leftBars[i].style.height = height;
+      if (rightBars[i]) rightBars[i].style.height = height;
+    }
+    if (typeof window.electronAPI.sendAudioLevels === 'function') {
+      window.electronAPI.sendAudioLevels(levels.map((v) => Math.round(v * 100) / 100));
+    }
 
     state.analyser.getFloatTimeDomainData(tdBuf);
     const { rms, peak } = analyzePcmAmplitude(tdBuf);
@@ -1522,14 +1593,44 @@ function setupAudioVisualization(stream, opts = {}) {
       if (now - silenceSinceMs >= RECORD_SILENCE_HOLD_MS) {
         silenceAutoStopFired = true;
         state.recordingStopReason = 'silence-timeout';
+        stopViz();
         stopRecording();
         return;
       }
     }
-
-    requestAnimationFrame(animate);
   }
+  state.vizTimerId = setInterval(animate, WAVE_FRAME_MS);
   animate();
+}
+
+const WAVE_FRAME_MS = 33;
+const WAVE_MIN_PX = 6;
+const WAVE_MAX_PX = 30;
+const WAVE_NOISE_FLOOR = 70;
+
+/** Log-spaced FFT bin ranges across the speech band (~120 Hz – 5 kHz), one per bar. */
+function voiceBandEdges(count, sampleRate, fftSize) {
+  const hzPerBin = sampleRate / fftSize;
+  const lo = 120;
+  const hi = 5000;
+  const edges = [];
+  for (let i = 0; i < count; i++) {
+    const f0 = lo * Math.pow(hi / lo, i / count);
+    const f1 = lo * Math.pow(hi / lo, (i + 1) / count);
+    const b0 = Math.floor(f0 / hzPerBin);
+    const b1 = Math.max(b0 + 1, Math.ceil(f1 / hzPerBin));
+    edges.push([b0, b1]);
+  }
+  return edges;
+}
+
+function resetWaveBars() {
+  document.querySelectorAll('#waveform-left .wave-bar, #waveform-right .wave-bar').forEach((bar) => {
+    bar.style.height = '';
+  });
+  if (typeof window.electronAPI.sendAudioLevels === 'function') {
+    window.electronAPI.sendAudioLevels(null);
+  }
 }
 
 // ============================================

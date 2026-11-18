@@ -8,4 +8,7 @@ config.json
 *.zip
 *.lnk
 *.ico
+!assets/icon.ico
 release/
+dist-final/
+VoxFab-AI-*-Standalone/

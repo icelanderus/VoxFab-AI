@@ -92,6 +92,8 @@ let tray = null;
 let isRecording = false;
 let isProcessing = false;
 let miniFabWindow = null;
+/** Third collapsed mode: small tab docked to a screen edge. */
+let edgeTabWindow = null;
 let regionPickerWindow = null;
 let regionOcrFlowResolve = null;
 let regionOcrState = null;
@@ -222,9 +224,11 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      // Recording keeps running while this window is hidden (mini FAB); don't throttle its timers.
+      backgroundThrottling: false
     },
-    icon: path.join(__dirname, 'assets', 'icon.png')
+    icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png')
   });
   
   if (process.platform === 'win32') {
@@ -268,7 +272,7 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+  const iconPath = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
 
@@ -279,9 +283,7 @@ function createTray() {
         if (mainWindow.isVisible()) {
           mainWindow.hide();
         } else {
-          if (miniFabWindow && !miniFabWindow.isDestroyed()) {
-            miniFabWindow.hide();
-          }
+          hideCollapsedWindows();
           mainWindow.show();
           if (process.platform === 'win32') {
             mainWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -314,9 +316,7 @@ function createTray() {
     if (mainWindow.isVisible()) {
       mainWindow.hide();
     } else {
-      if (miniFabWindow && !miniFabWindow.isDestroyed()) {
-        miniFabWindow.hide();
-      }
+      hideCollapsedWindows();
       mainWindow.show();
       if (process.platform === 'win32') {
         mainWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -344,8 +344,147 @@ function toggleRecording() {
     mainWindow.webContents.send('toggle-recording', isRecording);
   }
   if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    syncMiniFabWidth();
     miniFabWindow.webContents.send('toggle-recording', isRecording);
   }
+  if (edgeTabWindow && !edgeTabWindow.isDestroyed()) {
+    placeEdgeTab();
+    edgeTabWindow.webContents.send('toggle-recording', isRecording);
+  }
+}
+
+// ============================================
+// macOS single-key hotkeys (Fn, lone modifier taps)
+// ============================================
+// Electron's globalShortcut cannot register Fn or a bare modifier (e.g. Right ⌘) on macOS.
+// A small JXA helper polls the HID keyboard state (no extra deps) and reports a "tap":
+// key pressed and released with no other key or mouse click in between.
+const MAC_SOLO_KEYS = {
+  Fn: { flag: 0x800000 },
+  LeftCommand: { code: 55 },
+  RightCommand: { code: 54 },
+  LeftOption: { code: 58 },
+  RightOption: { code: 61 },
+  LeftShift: { code: 56 },
+  RightShift: { code: 60 },
+  LeftCtrl: { code: 59 },
+  RightCtrl: { code: 62 }
+};
+
+function isMacSoloHotkey(hk) {
+  return process.platform === 'darwin' && typeof hk === 'string' && Object.prototype.hasOwnProperty.call(MAC_SOLO_KEYS, hk);
+}
+
+const MAC_KEY_WATCH_JXA = `
+function run(argv) {
+  ObjC.import('CoreGraphics');
+  ObjC.bindFunction('getppid', ['int', []]);
+  var watches = JSON.parse(argv[0]);
+  var parent = $.getppid();
+  var S = 1; // kCGEventSourceStateHIDSystemState
+  function otherInput() {
+    return $.CGEventSourceCounterForEventType(S, 10) + $.CGEventSourceCounterForEventType(S, 1) +
+      $.CGEventSourceCounterForEventType(S, 3) + $.CGEventSourceCounterForEventType(S, 25);
+  }
+  var state = {};
+  console.log('ready');
+  var tick = 0;
+  while (true) {
+    var flags = $.CGEventSourceFlagsState(S);
+    var other = otherInput();
+    for (var i = 0; i < watches.length; i++) {
+      var w = watches[i];
+      var pressed = w.flag ? ((flags & w.flag) !== 0) : !!$.CGEventSourceKeyState(S, w.code);
+      var st = state[w.name];
+      if (pressed && !st) {
+        state[w.name] = { t: Date.now(), other: other };
+      } else if (!pressed && st) {
+        state[w.name] = null;
+        if (st.other === other && Date.now() - st.t < 1200) console.log('tap ' + w.name);
+      }
+    }
+    if (++tick % 40 === 0 && $.getppid() !== parent) return;
+    delay(0.025);
+  }
+}`;
+
+let macKeyWatcher = null;
+let macKeyWatcherSig = '';
+/** name -> callback for the running watcher. */
+let macKeyWatcherHandlers = {};
+
+function stopMacKeyWatcher() {
+  if (macKeyWatcher) {
+    try {
+      macKeyWatcher.kill();
+    } catch (_) {}
+  }
+  macKeyWatcher = null;
+  macKeyWatcherSig = '';
+  macKeyWatcherHandlers = {};
+}
+
+/** handlers: { [soloKeyName]: () => void }. Empty object stops the watcher. */
+function setMacKeyWatcher(handlers) {
+  if (process.platform !== 'darwin') return;
+  const names = Object.keys(handlers).filter((n) => MAC_SOLO_KEYS[n]).sort();
+  const sig = names.join(',');
+  if (!names.length) {
+    stopMacKeyWatcher();
+    return;
+  }
+  if (macKeyWatcher && sig === macKeyWatcherSig) {
+    macKeyWatcherHandlers = handlers;
+    return;
+  }
+  stopMacKeyWatcher();
+  const watches = names.map((name) => ({ name, ...MAC_SOLO_KEYS[name] }));
+  const proc = spawn('osascript', ['-l', 'JavaScript', '-e', MAC_KEY_WATCH_JXA, JSON.stringify(watches)]);
+  macKeyWatcher = proc;
+  macKeyWatcherSig = sig;
+  macKeyWatcherHandlers = handlers;
+  let buf = '';
+  proc.stderr.on('data', (d) => {
+    buf += d.toString();
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (line.startsWith('tap ')) {
+        const fn = macKeyWatcherHandlers[line.slice(4)];
+        if (typeof fn === 'function') {
+          try {
+            fn();
+          } catch (e) {
+            console.error('solo hotkey handler:', e);
+          }
+        }
+      } else if (line && line !== 'ready') {
+        console.error('key watcher:', line);
+      }
+    }
+  });
+  proc.on('error', (err) => console.error('key watcher spawn failed:', err.message));
+  proc.on('exit', () => {
+    if (macKeyWatcher === proc) {
+      macKeyWatcher = null;
+      macKeyWatcherSig = '';
+    }
+  });
+}
+
+/** While the shortcut editor is open: report any solo key tap to the renderer so Fn etc. can be recorded. */
+function startMacHotkeyCaptureWatcher() {
+  if (process.platform !== 'darwin') return;
+  const handlers = {};
+  for (const name of Object.keys(MAC_SOLO_KEYS)) {
+    handlers[name] = () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('native-hotkey-captured', name);
+      }
+    };
+  }
+  setMacKeyWatcher(handlers);
 }
 
 function registerGlobalShortcut() {
@@ -361,7 +500,9 @@ function registerGlobalShortcut() {
     toggleRecording();
     
     // Only show main window if we are NOT in mini-fab mode
-    const isMiniMode = miniFabWindow && !miniFabWindow.isDestroyed() && miniFabWindow.isVisible();
+    const isMiniMode =
+      (miniFabWindow && !miniFabWindow.isDestroyed() && miniFabWindow.isVisible()) ||
+      (edgeTabWindow && !edgeTabWindow.isDestroyed() && edgeTabWindow.isVisible());
     
     if (!isMiniMode && mainWindow && !mainWindow.isVisible()) {
       mainWindow.show();
@@ -386,14 +527,27 @@ function registerGlobalShortcut() {
     openGrammarFloatFromShortcut().catch((e) => console.error('grammar float:', e));
   };
 
+  // Single keys macOS can't register globally (Fn, lone modifiers) go through the HID watcher.
+  const soloHandlers = {};
+  const registerHotkey = (label, hk, handler) => {
+    if (isMacSoloHotkey(hk)) {
+      soloHandlers[hk] = handler;
+      return;
+    }
+    let ok = false;
+    try {
+      ok = globalShortcut.register(hk, handler);
+    } catch (e) {
+      console.error(`Invalid ${label}: ${hk}`, e.message);
+    }
+    if (!ok) console.error(`Failed to register ${label}: ${hk}`);
+  };
+
   // Register Record
-  if (!globalShortcut.register(recordHotkey, onToggleHotkey)) {
-    console.error(`Failed to register recordHotkey: ${recordHotkey}`);
-  }
+  registerHotkey('recordHotkey', recordHotkey, onToggleHotkey);
   // Register Assistant
-  if (!globalShortcut.register(assistantHotkey, onGrammarHotkey)) {
-    console.error(`Failed to register assistantHotkey: ${assistantHotkey}`);
-  }
+  registerHotkey('assistantHotkey', assistantHotkey, onGrammarHotkey);
+  setMacKeyWatcher(soloHandlers);
   // Register Analyze
   if (!globalShortcut.register(analyzeHotkey, onAnalyzeHotkey)) {
     console.error(`Failed to register analyzeHotkey: ${analyzeHotkey}`);
@@ -408,6 +562,7 @@ function registerGlobalShortcut() {
 // IPC Handlers
 ipcMain.handle('get-settings', () => {
   return {
+    version: app.getVersion(),
     engine: store.get('engine'),
     openaiApiKey: store.get('openaiApiKey'),
     googleApiKey: store.get('googleApiKey'),
@@ -467,6 +622,7 @@ ipcMain.handle('save-settings', (event, settings) => {
 
 ipcMain.handle('disable-global-shortcuts', () => {
   globalShortcut.unregisterAll();
+  startMacHotkeyCaptureWatcher();
   return true;
 });
 
@@ -481,6 +637,7 @@ ipcMain.handle('enter-mini-mode', () => {
   }
   ensureMiniFabWindow();
   if (miniFabWindow) {
+    syncMiniFabWidth();
     miniFabWindow.show();
     // Immediate sync of recording state to the FAB
     miniFabWindow.webContents.send('toggle-recording', isRecording);
@@ -490,9 +647,7 @@ ipcMain.handle('enter-mini-mode', () => {
 });
 
 ipcMain.handle('exit-mini-mode', () => {
-  if (miniFabWindow && !miniFabWindow.isDestroyed()) {
-    miniFabWindow.hide();
-  }
+  hideCollapsedWindows();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
     if (process.platform === 'win32') {
@@ -540,7 +695,7 @@ function macDuckPlaybackForRecordingStart() {
     'set vs to get volume settings',
     'set ov to output volume of vs',
     'set om to output muted of vs',
-    'set volume with output muted true',
+    'set volume with output muted',
     'return (ov as text) & "|" & (om as text)'
   ].join('\n');
   try {
@@ -565,7 +720,7 @@ function macRestorePlaybackAfterRecordingStop() {
   const saved = macPlaybackDuckSaved;
   macPlaybackDuckSaved = null;
   const v = Math.max(0, Math.min(100, Math.round(Number(saved.outputVolume) || 0)));
-  const muteLine = saved.outputMuted ? 'set volume with output muted true' : 'set volume with output muted false';
+  const muteLine = saved.outputMuted ? 'set volume with output muted' : 'set volume without output muted';
   const src = `set volume output volume ${v}\n${muteLine}`;
   try {
     spawnSync('osascript', ['-e', src], { encoding: 'utf8', timeout: 5000 });
@@ -1811,13 +1966,34 @@ ipcMain.on('grammar-float-resize', (_event, { width, height }) => {
   grammarFloatWindow.setSize(w, h);
 });
 
+const MINI_FAB_SIZE = 90;
+const MINI_FAB_WIDE_WIDTH = 210;
+
+/** While recording, widen the FAB window (keeping the button in place) to make room for side waves. */
+function syncMiniFabWidth() {
+  if (!miniFabWindow || miniFabWindow.isDestroyed()) return;
+  const want = isRecording ? MINI_FAB_WIDE_WIDTH : MINI_FAB_SIZE;
+  const b = miniFabWindow.getBounds();
+  if (b.width === want) return;
+  const cx = b.x + b.width / 2;
+  miniFabWindow.setBounds({ x: Math.round(cx - want / 2), y: b.y, width: want, height: MINI_FAB_SIZE });
+}
+
+ipcMain.on('audio-levels', (_event, levels) => {
+  for (const win of [miniFabWindow, edgeTabWindow]) {
+    if (win && !win.isDestroyed() && win.isVisible()) {
+      win.webContents.send('audio-levels', levels);
+    }
+  }
+});
+
 function ensureMiniFabWindow() {
   if (miniFabWindow && !miniFabWindow.isDestroyed()) {
     return miniFabWindow;
   }
   miniFabWindow = new BrowserWindow({
-    width: 90,
-    height: 90,
+    width: MINI_FAB_SIZE,
+    height: MINI_FAB_SIZE,
     show: false,
     frame: false,
     transparent: true,
@@ -1845,6 +2021,173 @@ function ensureMiniFabWindow() {
   });
   return miniFabWindow;
 }
+
+// ============================================
+// Docked edge tab (collapsed mode #3)
+// ============================================
+// Always glued to a screen edge (work area, so it sits beside the Dock / below the menu bar).
+// Dragging slides it along the nearest edge; it can never float free.
+const EDGE_TAB_THICKNESS = 30; // tab sizes below must match edge-tab.css
+const EDGE_TAB_BASE_LENGTH = 56;
+const EDGE_TAB_HOVER_EXTRA = 28; // expand button (20px) + gaps, outside the tab
+const EDGE_TAB_OVERHANG = 14; // >= macOS window corner radius
+// The window is a fixed transparent square that is only ever moved, never resized: resizing a
+// transparent window on macOS intermittently leaves its empty area painted white. The tab and the
+// expand button are sized by CSS inside it (edge-tab.css), and clicks pass through the empty part.
+const EDGE_TAB_WAVE_EXTRA = 84; // room for side waves while recording
+const EDGE_TAB_WINDOW_SIZE = EDGE_TAB_BASE_LENGTH + EDGE_TAB_WAVE_EXTRA + EDGE_TAB_HOVER_EXTRA;
+const EDGE_TAB_EDGES = ['top', 'bottom', 'left', 'right'];
+
+let edgeTabDragging = false;
+/** { edge, point: {x, y} } — point is the tab's center along the edge, in screen coordinates. */
+let edgeTabDock = null;
+
+function hideCollapsedWindows() {
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) miniFabWindow.hide();
+  if (edgeTabWindow && !edgeTabWindow.isDestroyed()) edgeTabWindow.hide();
+}
+
+function defaultEdgeTabDock() {
+  const wa = screen.getPrimaryDisplay().workArea;
+  return { edge: 'bottom', point: { x: wa.x + wa.width / 2, y: wa.y + wa.height } };
+}
+
+function loadEdgeTabDock() {
+  const saved = store.get('edgeTabDock');
+  if (
+    saved &&
+    EDGE_TAB_EDGES.includes(saved.edge) &&
+    saved.point &&
+    Number.isFinite(saved.point.x) &&
+    Number.isFinite(saved.point.y)
+  ) {
+    return saved;
+  }
+  return defaultEdgeTabDock();
+}
+
+/** Nearest work-area edge to a screen point. */
+function nearestEdgeDock(point) {
+  const wa = screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) }).workArea;
+  const d = {
+    left: Math.abs(point.x - wa.x),
+    right: Math.abs(wa.x + wa.width - point.x),
+    top: Math.abs(point.y - wa.y),
+    bottom: Math.abs(wa.y + wa.height - point.y)
+  };
+  const edge = EDGE_TAB_EDGES.reduce((a, b) => (d[b] < d[a] ? b : a));
+  return { edge, point: { x: point.x, y: point.y } };
+}
+
+function placeEdgeTab() {
+  if (!edgeTabWindow || edgeTabWindow.isDestroyed()) return;
+  if (!edgeTabDock) edgeTabDock = loadEdgeTabDock();
+  const { edge, point } = edgeTabDock;
+  const wa = screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) }).workArea;
+  const S = EDGE_TAB_WINDOW_SIZE;
+  const tabLen = EDGE_TAB_BASE_LENGTH + (isRecording ? EDGE_TAB_WAVE_EXTRA : 0);
+  // Keep room for the hover expand button after the tab, so hovering never moves the window.
+  const along = tabLen + EDGE_TAB_HOVER_EXTRA;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  // The tab sits at the start of the window (left / top) and reaches EDGE_TAB_OVERHANG past the
+  // work-area edge (under the Dock / menu bar, or off-screen), so macOS's rounded window corners on
+  // that side fall in transparent space and the tab's edge-side corners stay square.
+  let x;
+  let y;
+  if (edge === 'top' || edge === 'bottom') {
+    x = clamp(point.x - tabLen / 2, wa.x, wa.x + wa.width - along);
+    y = edge === 'top' ? wa.y - EDGE_TAB_OVERHANG : wa.y + wa.height + EDGE_TAB_OVERHANG - S;
+  } else {
+    y = clamp(point.y - tabLen / 2, wa.y, wa.y + wa.height - along);
+    x = edge === 'left' ? wa.x - EDGE_TAB_OVERHANG : wa.x + wa.width + EDGE_TAB_OVERHANG - S;
+  }
+  const b = edgeTabWindow.getBounds();
+  if (b.x !== Math.round(x) || b.y !== Math.round(y) || b.width !== S || b.height !== S) {
+    edgeTabWindow.setBounds({ x: Math.round(x), y: Math.round(y), width: S, height: S });
+  }
+  edgeTabWindow.webContents.send('edge-tab-edge', edge);
+}
+
+function ensureEdgeTabWindow() {
+  if (edgeTabWindow && !edgeTabWindow.isDestroyed()) return edgeTabWindow;
+  edgeTabWindow = new BrowserWindow({
+    width: EDGE_TAB_WINDOW_SIZE,
+    height: EDGE_TAB_WINDOW_SIZE,
+    show: false,
+    frame: false,
+    // Keep macOS default corner rounding: roundedCorners:false paints white squares in the
+    // transparent corners. The edge-side corners are hidden in the overhang instead (placeEdgeTab).
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+  if (process.platform === 'win32') {
+    edgeTabWindow.setAlwaysOnTop(true, 'screen-saver');
+  }
+  // Click-through until the pointer is over the tab or its button (renderer reports it).
+  edgeTabWindow.setIgnoreMouseEvents(true, { forward: true });
+  edgeTabWindow.loadFile('edge-tab.html');
+  edgeTabWindow.webContents.on('did-finish-load', () => {
+    if (!edgeTabWindow || edgeTabWindow.isDestroyed()) return;
+    placeEdgeTab();
+    edgeTabWindow.webContents.send('toggle-recording', isRecording);
+    edgeTabWindow.webContents.send('processing-state', isProcessing);
+  });
+  edgeTabWindow.on('closed', () => {
+    edgeTabWindow = null;
+  });
+  return edgeTabWindow;
+}
+
+ipcMain.handle('enter-edge-tab-mode', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) miniFabWindow.hide();
+  ensureEdgeTabWindow();
+  edgeTabDragging = false;
+  placeEdgeTab();
+  edgeTabWindow.show();
+  edgeTabWindow.webContents.send('toggle-recording', isRecording);
+  edgeTabWindow.webContents.send('processing-state', isProcessing);
+  return true;
+});
+
+/** Renderer: pointer is over the tab / button (take clicks) or over the empty area (pass them through). */
+ipcMain.on('edge-tab-interactive', (_event, interactive) => {
+  if (!edgeTabWindow || edgeTabWindow.isDestroyed()) return;
+  if (interactive) edgeTabWindow.setIgnoreMouseEvents(false);
+  else if (!edgeTabDragging) edgeTabWindow.setIgnoreMouseEvents(true, { forward: true });
+});
+
+ipcMain.on('edge-tab-drag', (_event, phase) => {
+  if (!edgeTabWindow || edgeTabWindow.isDestroyed()) return;
+  if (phase === 'start') {
+    edgeTabDragging = true;
+    return;
+  }
+  if (!edgeTabDragging) return;
+  if (phase === 'cancel') {
+    // Plain click: keep the dock where it was.
+    edgeTabDragging = false;
+    placeEdgeTab();
+    return;
+  }
+  edgeTabDock = nearestEdgeDock(screen.getCursorScreenPoint());
+  if (phase === 'end') {
+    edgeTabDragging = false;
+    store.set('edgeTabDock', edgeTabDock);
+  }
+  placeEdgeTab();
+});
 
 ipcMain.handle('toggle-recording-main', () => {
   toggleRecording();
@@ -1888,7 +2231,12 @@ ipcMain.handle('set-recording-state', (event, s) => {
   }
   isRecording = s;
   if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    syncMiniFabWidth();
     miniFabWindow.webContents.send('toggle-recording', isRecording);
+  }
+  if (edgeTabWindow && !edgeTabWindow.isDestroyed()) {
+    placeEdgeTab();
+    edgeTabWindow.webContents.send('toggle-recording', isRecording);
   }
 });
 
@@ -1896,6 +2244,9 @@ ipcMain.handle('set-processing-state', (_event, s) => {
   isProcessing = !!s;
   if (miniFabWindow && !miniFabWindow.isDestroyed()) {
     miniFabWindow.webContents.send('processing-state', isProcessing);
+  }
+  if (edgeTabWindow && !edgeTabWindow.isDestroyed()) {
+    edgeTabWindow.webContents.send('processing-state', isProcessing);
   }
 });
 
@@ -1955,6 +2306,7 @@ app.whenReady().then(() => {
 app.on('will-quit', () => {
   macRestorePlaybackAfterRecordingStop();
   globalShortcut.unregisterAll();
+  stopMacKeyWatcher();
   stopWindowMonitor();
   if (grammarLoaderWindow && !grammarLoaderWindow.isDestroyed()) {
     grammarLoaderWindow.destroy();

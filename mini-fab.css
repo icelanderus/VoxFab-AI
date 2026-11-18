@@ -153,3 +153,24 @@ html, body {
 .expand-btn:active {
   transform: scale(0.9);
 }
+
+/* Voice-reactive side waves (visible only while recording; window widens in main.js). */
+.fab-waveform {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  height: 40px;
+  pointer-events: none;
+}
+
+body.recording .fab-waveform {
+  display: flex;
+}
+
+.fab-waveform .wave-bar {
+  width: 3px;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--accent-gradient);
+  transition: height 60ms linear;
+}

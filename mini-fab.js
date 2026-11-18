@@ -77,8 +77,29 @@ async function handleFabClick() {
 }
 
 // Update UI based on recording state
+const WAVE_MIN_PX = 5;
+const WAVE_MAX_PX = 28;
+// Bars ordered from the FAB outward (index 0 = closest to the button), mirrored on both sides.
+const leftWaveBars = Array.from(document.querySelectorAll('#fab-wave-left .wave-bar')).reverse();
+const rightWaveBars = Array.from(document.querySelectorAll('#fab-wave-right .wave-bar'));
+
+function renderWaveLevels(levels) {
+  for (let i = 0; i < rightWaveBars.length; i++) {
+    const v = levels && typeof levels[i] === 'number' ? Math.max(0, Math.min(1, levels[i])) : 0;
+    const h = levels ? `${WAVE_MIN_PX + v * (WAVE_MAX_PX - WAVE_MIN_PX)}px` : '';
+    rightWaveBars[i].style.height = h;
+    if (leftWaveBars[i]) leftWaveBars[i].style.height = h;
+  }
+}
+
+if (typeof window.electronAPI.onAudioLevels === 'function') {
+  window.electronAPI.onAudioLevels(renderWaveLevels);
+}
+
 function updateRecordingUI(recording) {
   isRecording = recording;
+  document.body.classList.toggle('recording', !!recording && !isProcessing);
+  if (!recording) renderWaveLevels(null);
   if (isProcessing) return;
   if (isRecording) {
     fabCircle.classList.add('recording');
@@ -96,6 +117,7 @@ function updateRecordingUI(recording) {
 function updateProcessingUI(processing) {
   isProcessing = !!processing;
   if (isProcessing) {
+    document.body.classList.remove('recording');
     fabCircle.classList.remove('recording');
     micIcon.classList.add('hidden');
     stopIcon.classList.add('hidden');
