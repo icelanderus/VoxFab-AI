@@ -25,8 +25,10 @@ Get the latest ready-to-use version of VoxFab AI. No build steps required.
 ## ✨ Features
 
 
-### 🎙️ System-wide Dictation
+### 🎙️ System-wide Dictation & Smart Cleanup
 Press `Ctrl+Shift+Space` (or `⌘⇧Space`) to record audio and have it typed directly into any active application. VoxFab transcribes anything you say and automatically pastes it into the field that was last in focus.
+
+- **Smart Dictation Cleanup**: Automatically removes filler words, stutters, self-corrections, and off-topic asides, fixes broken sentences and punctuation, and turns spoken enumerations (*"one, two, three"*) into clean numbered lists before pasting—while preserving your exact language, tone, and wording.
 
 ![System-wide intelligence](assets/ai-assistant.png)
 

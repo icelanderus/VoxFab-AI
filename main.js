@@ -80,7 +80,9 @@ const store = new ConfigStore({
   /** While recording, show interim text (Web Speech + periodic engine transcribe). Off by default (saves CPU/API). */
   livePreviewEnabled: false,
   /** Mic on/off + floating assistant UI sounds. */
-  uiSoundsEnabled: true
+  uiSoundsEnabled: true,
+  /** Rewrite final dictation into clean sentences / numbered lists (OpenAI) before pasting. */
+  dictationCleanupEnabled: true
 });
 
 let mainWindow = null;
@@ -576,6 +578,7 @@ ipcMain.handle('get-settings', () => {
     grammarFloatResizable: store.get('grammarFloatResizable') !== false,
     livePreviewEnabled: store.get('livePreviewEnabled') === true,
     uiSoundsEnabled: store.get('uiSoundsEnabled') !== false,
+    dictationCleanupEnabled: store.get('dictationCleanupEnabled') !== false,
     recordHotkey: store.get('recordHotkey') || (process.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+Space'),
     assistantHotkey: store.get('assistantHotkey') || (process.platform === 'darwin' ? 'Command+Shift+E' : 'Ctrl+Shift+E')
   };
@@ -611,6 +614,9 @@ ipcMain.handle('save-settings', (event, settings) => {
   }
   if (settings.uiSoundsEnabled !== undefined) {
     store.set('uiSoundsEnabled', settings.uiSoundsEnabled);
+  }
+  if (settings.dictationCleanupEnabled !== undefined) {
+    store.set('dictationCleanupEnabled', settings.dictationCleanupEnabled);
   }
   if (settings.recordHotkey !== undefined || settings.assistantHotkey !== undefined) {
     if (settings.recordHotkey !== undefined) store.set('recordHotkey', settings.recordHotkey);
