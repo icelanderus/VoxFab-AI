@@ -35,7 +35,7 @@ class ConfigStore {
   load() {
     try {
       if (fs.existsSync(this.configPath)) {
-        const raw = fs.readFileSync(this.configPath, 'utf-8');
+        const raw = fs.readFileSync(this.configPath, 'utf-8').replace(/^\uFEFF/, '');
         this.data = { ...this.defaults, ...JSON.parse(raw) };
       }
     } catch (e) {
@@ -81,8 +81,10 @@ const store = new ConfigStore({
   livePreviewEnabled: false,
   /** Mic on/off + floating assistant UI sounds. */
   uiSoundsEnabled: true,
-  /** Rewrite final dictation into clean sentences / numbered lists (OpenAI) before pasting. */
-  dictationCleanupEnabled: true
+  /** Rewrite final dictation into clean sentences / numbered lists (OpenAI) before pasting. Off by default for maximum speed. */
+  dictationCleanupEnabled: false,
+  /** Selected audio input deviceId ('default' uses OS default microphone). */
+  micDeviceId: 'default'
 });
 
 let mainWindow = null;
@@ -578,7 +580,8 @@ ipcMain.handle('get-settings', () => {
     grammarFloatResizable: store.get('grammarFloatResizable') !== false,
     livePreviewEnabled: store.get('livePreviewEnabled') === true,
     uiSoundsEnabled: store.get('uiSoundsEnabled') !== false,
-    dictationCleanupEnabled: store.get('dictationCleanupEnabled') !== false,
+    dictationCleanupEnabled: store.get('dictationCleanupEnabled') === true,
+    micDeviceId: store.get('micDeviceId') || 'default',
     recordHotkey: store.get('recordHotkey') || (process.platform === 'darwin' ? 'Command+Shift+Space' : 'Ctrl+Shift+Space'),
     assistantHotkey: store.get('assistantHotkey') || (process.platform === 'darwin' ? 'Command+Shift+E' : 'Ctrl+Shift+E')
   };
@@ -617,6 +620,9 @@ ipcMain.handle('save-settings', (event, settings) => {
   }
   if (settings.dictationCleanupEnabled !== undefined) {
     store.set('dictationCleanupEnabled', settings.dictationCleanupEnabled);
+  }
+  if (settings.micDeviceId !== undefined) {
+    store.set('micDeviceId', settings.micDeviceId || 'default');
   }
   if (settings.recordHotkey !== undefined || settings.assistantHotkey !== undefined) {
     if (settings.recordHotkey !== undefined) store.set('recordHotkey', settings.recordHotkey);

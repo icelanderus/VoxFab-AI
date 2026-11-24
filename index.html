@@ -355,6 +355,28 @@
 
       <div class="settings-body">
         <div class="settings-scroll">
+        <!-- Microphone / Input Device -->
+        <div class="setting-group" id="mic-device-group">
+          <div class="setting-label-row">
+            <label class="setting-label" for="mic-device-select">Microphone Input</label>
+            <button type="button" class="mic-refresh-btn" id="mic-refresh-btn" title="Refresh microphone list">↻ Refresh</button>
+          </div>
+          <select class="setting-select" id="mic-device-select">
+            <option value="default">Detecting microphone…</option>
+          </select>
+          <div class="mic-hardware-status" id="mic-hardware-status">
+            <span class="mic-hw-dot" id="mic-hw-dot"></span>
+            <span class="mic-hw-label" id="mic-hw-label">Detecting audio hardware…</span>
+          </div>
+          <div class="mic-test-row">
+            <button type="button" class="api-key-btn" id="mic-test-btn">Test Mic</button>
+            <div class="mic-test-meter" id="mic-test-meter" title="Live microphone input level">
+              <div class="mic-test-meter-fill" id="mic-test-meter-fill"></div>
+            </div>
+            <span class="mic-test-status" id="mic-test-status">Idle</span>
+          </div>
+        </div>
+
         <!-- Engine Selection -->
         <div class="setting-group">
           <label class="setting-label">Speech Engine</label>
@@ -378,7 +400,7 @@
           <label class="setting-label">Clean up dictation</label>
           <div class="setting-description">Before pasting, rewrite what you said into clean sentences: drops fillers, slips and off-topic asides, fixes broken sentences, and turns dictated "one, two, three" into a numbered list. Needs your OpenAI API key.</div>
           <label class="toggle-switch">
-            <input type="checkbox" id="cleanup-toggle-settings" checked>
+            <input type="checkbox" id="cleanup-toggle-settings">
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -477,7 +499,7 @@
         </div>
 
         <div class="setting-group setting-version" style="margin-top: 24px; text-align: center; opacity: 0.5; font-size: 11px;">
-          <span id="settings-version-text">VoxFab AI v1.3.6</span>
+          <span id="settings-version-text">VoxFab AI v1.3.7</span>
         </div>
 
         </div>
