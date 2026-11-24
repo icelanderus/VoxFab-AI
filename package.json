@@ -14,10 +14,17 @@
   "build": {
     "appId": "com.personal.voxfab-ai",
     "productName": "VoxFab AI",
-    "publish": null,
-    "artifactName": "VoxFab-AI-${version}-macOS-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "icelanderus",
+        "repo": "VoxFab-AI"
+      }
+    ],
+    "compression": "maximum",
     "dmg": {
-      "title": "VoxFab AI ${version}"
+      "title": "VoxFab AI ${version}",
+      "artifactName": "VoxFab-AI-${version}-macOS-${arch}.${ext}"
     },
     "mac": {
       "target": [
@@ -25,13 +32,23 @@
         "zip"
       ],
       "icon": "assets/icon.png",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "artifactName": "VoxFab-AI-${version}-macOS-${arch}.${ext}"
     },
     "win": {
       "target": [
-        "dir"
+        "nsis-web"
       ],
-      "icon": "voxfabAI-launcher-icon.png"
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsisWeb": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "VoxFab-AI-Web-Setup-${version}.${ext}",
+      "appPackageUrl": "https://github.com/icelanderus/VoxFab-AI/releases/download/v${version}"
     },
     "asar": true,
     "asarUnpack": [
@@ -41,7 +58,14 @@
     "files": [
       "**/*",
       "!node_modules/.cache/**",
+      "!**/node_modules/onnxruntime-node/**",
+      "!**/node_modules/openai/**",
+      "!**/node_modules/**/*.map",
+      "!**/node_modules/**/*.d.ts",
       "!dist",
+      "!dist-final",
+      "!release",
+      "!VoxFab-AI-*-Standalone",
       "!Voice To Text-win32-x64",
       "!*.zip",
       "!*.lnk",

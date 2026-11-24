@@ -9,13 +9,13 @@
 
 ## 📥 Download
 
-Get the latest ready-to-use version of VoxFab AI. No build steps required.
+Get the latest ready-to-use version of VoxFab AI directly from **GitHub Releases** (Windows Web Installer is under **1 MB** and automatically fetches the runtime during setup).
 
-<a href="https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86" target="_blank">
-  <img src="https://img.shields.io/badge/Download-Windows-blue?style=for-the-badge&logo=windows" alt="Download for Windows">
+<a href="https://github.com/icelanderus/VoxFab-AI/releases/latest/download/VoxFab-AI-Web-Setup-1.3.8.exe" target="_blank">
+  <img src="https://img.shields.io/badge/Download-Windows_Web_Installer_(0.8_MB)-blue?style=for-the-badge&logo=windows" alt="Download for Windows">
 </a>
-<a href="https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86" target="_blank">
-  <img src="https://img.shields.io/badge/Download-macOS-black?style=for-the-badge&logo=apple" alt="Download for macOS">
+<a href="https://github.com/icelanderus/VoxFab-AI/releases/latest" target="_blank">
+  <img src="https://img.shields.io/badge/Download-macOS_(Apple_Silicon_%26_Intel)-black?style=for-the-badge&logo=apple" alt="Download for macOS">
 </a>
 <br><br>
 <a href="https://drive.proton.me/urls/KNW4V68W3C#N-LUlNjFri86" target="_blank">
