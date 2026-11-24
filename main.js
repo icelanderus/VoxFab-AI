@@ -72,6 +72,7 @@ const store = new ConfigStore({
   windowSizeLegacyDefaultUpgraded: false,
   bgOpacity: 1,
   bgBlur: 12,
+  fabScale: 1,
   language: 'en',
   /** Win/Linux: open assistant when clipboard changes after copy. Default: false (user wants only explicit hotkeys). */
   autoGrammarClipboard: false,
@@ -576,6 +577,7 @@ ipcMain.handle('get-settings', () => {
     language: store.get('language'),
     bgOpacity: store.get('bgOpacity'),
     bgBlur: store.get('bgBlur'),
+    fabScale: store.get('fabScale') !== undefined ? store.get('fabScale') : 1,
     assistantEnabled: store.get('assistantEnabled') !== false,
     grammarFloatResizable: store.get('grammarFloatResizable') !== false,
     livePreviewEnabled: store.get('livePreviewEnabled') === true,
@@ -598,8 +600,13 @@ ipcMain.handle('save-settings', (event, settings) => {
   if (settings.bgOpacity !== undefined) {
     store.set('bgOpacity', settings.bgOpacity);
     broadcastGrammarFloatAppearance();
+    broadcastCollapsedAppearance();
   }
   if (settings.bgBlur !== undefined) store.set('bgBlur', settings.bgBlur);
+  if (settings.fabScale !== undefined) {
+    store.set('fabScale', settings.fabScale);
+    broadcastCollapsedAppearance();
+  }
   if (settings.assistantEnabled !== undefined) {
     store.set('assistantEnabled', settings.assistantEnabled);
     if (!settings.assistantEnabled) {
@@ -654,6 +661,10 @@ ipcMain.handle('enter-mini-mode', () => {
     // Immediate sync of recording state to the FAB
     miniFabWindow.webContents.send('toggle-recording', isRecording);
     miniFabWindow.webContents.send('processing-state', isProcessing);
+    miniFabWindow.webContents.send('collapsed-appearance', {
+      bgOpacity: grammarFloatBgOpacityOrDefault(),
+      fabScale: getFabScaleOrDefault()
+    });
   }
   return true;
 });
@@ -676,7 +687,13 @@ let dragOffset = { x: 0, y: 0 };
 
 ipcMain.on('window-drag-start', (event, offset) => {
   activeDragWin = BrowserWindow.fromWebContents(event.sender);
-  dragOffset = offset;
+  if (activeDragWin && !activeDragWin.isDestroyed()) {
+    const pt = screen.getCursorScreenPoint();
+    const [wx, wy] = activeDragWin.getPosition();
+    dragOffset = { x: pt.x - wx, y: pt.y - wy };
+  } else {
+    dragOffset = offset;
+  }
 });
 
 ipcMain.on('window-drag-move', (event) => {
@@ -1981,14 +1998,45 @@ ipcMain.on('grammar-float-resize', (_event, { width, height }) => {
 const MINI_FAB_SIZE = 90;
 const MINI_FAB_WIDE_WIDTH = 210;
 
+function getFabScaleOrDefault() {
+  const s = parseFloat(store.get('fabScale'));
+  return Number.isFinite(s) ? Math.max(0.6, Math.min(1.8, s)) : 1;
+}
+
+function broadcastCollapsedAppearance() {
+  const payload = {
+    bgOpacity: grammarFloatBgOpacityOrDefault(),
+    fabScale: getFabScaleOrDefault()
+  };
+  if (miniFabWindow && !miniFabWindow.isDestroyed()) {
+    syncMiniFabWidth();
+    miniFabWindow.webContents.send('collapsed-appearance', payload);
+  }
+  if (edgeTabWindow && !edgeTabWindow.isDestroyed()) {
+    placeEdgeTab();
+    edgeTabWindow.webContents.send('collapsed-appearance', payload);
+  }
+}
+
 /** While recording, widen the FAB window (keeping the button in place) to make room for side waves. */
 function syncMiniFabWidth() {
   if (!miniFabWindow || miniFabWindow.isDestroyed()) return;
-  const want = isRecording ? MINI_FAB_WIDE_WIDTH : MINI_FAB_SIZE;
+  const scale = getFabScaleOrDefault();
+  const wantW = Math.round((isRecording ? MINI_FAB_WIDE_WIDTH : MINI_FAB_SIZE) * scale);
+  const wantH = Math.round(MINI_FAB_SIZE * scale);
+  try {
+    miniFabWindow.webContents.setZoomFactor(scale);
+  } catch (_) {}
   const b = miniFabWindow.getBounds();
-  if (b.width === want) return;
+  if (b.width === wantW && b.height === wantH) return;
   const cx = b.x + b.width / 2;
-  miniFabWindow.setBounds({ x: Math.round(cx - want / 2), y: b.y, width: want, height: MINI_FAB_SIZE });
+  const cy = b.y + b.height / 2;
+  miniFabWindow.setBounds({
+    x: Math.round(cx - wantW / 2),
+    y: Math.round(cy - wantH / 2),
+    width: wantW,
+    height: wantH
+  });
 }
 
 ipcMain.on('audio-levels', (_event, levels) => {
@@ -2028,6 +2076,14 @@ function ensureMiniFabWindow() {
   }
 
   miniFabWindow.loadFile('mini-fab.html');
+  miniFabWindow.webContents.on('did-finish-load', () => {
+    if (!miniFabWindow || miniFabWindow.isDestroyed()) return;
+    syncMiniFabWidth();
+    miniFabWindow.webContents.send('collapsed-appearance', {
+      bgOpacity: grammarFloatBgOpacityOrDefault(),
+      fabScale: getFabScaleOrDefault()
+    });
+  });
   miniFabWindow.on('closed', () => {
     miniFabWindow = null;
   });
@@ -2096,10 +2152,15 @@ function placeEdgeTab() {
   if (!edgeTabDock) edgeTabDock = loadEdgeTabDock();
   const { edge, point } = edgeTabDock;
   const wa = screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) }).workArea;
-  const S = EDGE_TAB_WINDOW_SIZE;
-  const tabLen = EDGE_TAB_BASE_LENGTH + (isRecording ? EDGE_TAB_WAVE_EXTRA : 0);
+  const scale = getFabScaleOrDefault();
+  const S = Math.round(EDGE_TAB_WINDOW_SIZE * scale);
+  const tabLen = Math.round((EDGE_TAB_BASE_LENGTH + (isRecording ? EDGE_TAB_WAVE_EXTRA : 0)) * scale);
   // Keep room for the hover expand button after the tab, so hovering never moves the window.
-  const along = tabLen + EDGE_TAB_HOVER_EXTRA;
+  const along = tabLen + Math.round(EDGE_TAB_HOVER_EXTRA * scale);
+  const overhang = Math.round(EDGE_TAB_OVERHANG * scale);
+  try {
+    edgeTabWindow.webContents.setZoomFactor(scale);
+  } catch (_) {}
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
   // The tab sits at the start of the window (left / top) and reaches EDGE_TAB_OVERHANG past the
   // work-area edge (under the Dock / menu bar, or off-screen), so macOS's rounded window corners on
@@ -2108,10 +2169,10 @@ function placeEdgeTab() {
   let y;
   if (edge === 'top' || edge === 'bottom') {
     x = clamp(point.x - tabLen / 2, wa.x, wa.x + wa.width - along);
-    y = edge === 'top' ? wa.y - EDGE_TAB_OVERHANG : wa.y + wa.height + EDGE_TAB_OVERHANG - S;
+    y = edge === 'top' ? wa.y - overhang : wa.y + wa.height + overhang - S;
   } else {
     y = clamp(point.y - tabLen / 2, wa.y, wa.y + wa.height - along);
-    x = edge === 'left' ? wa.x - EDGE_TAB_OVERHANG : wa.x + wa.width + EDGE_TAB_OVERHANG - S;
+    x = edge === 'left' ? wa.x - overhang : wa.x + wa.width + overhang - S;
   }
   const b = edgeTabWindow.getBounds();
   if (b.x !== Math.round(x) || b.y !== Math.round(y) || b.width !== S || b.height !== S) {
@@ -2154,6 +2215,10 @@ function ensureEdgeTabWindow() {
     placeEdgeTab();
     edgeTabWindow.webContents.send('toggle-recording', isRecording);
     edgeTabWindow.webContents.send('processing-state', isProcessing);
+    edgeTabWindow.webContents.send('collapsed-appearance', {
+      bgOpacity: grammarFloatBgOpacityOrDefault(),
+      fabScale: getFabScaleOrDefault()
+    });
   });
   edgeTabWindow.on('closed', () => {
     edgeTabWindow = null;
@@ -2170,6 +2235,10 @@ ipcMain.handle('enter-edge-tab-mode', () => {
   edgeTabWindow.show();
   edgeTabWindow.webContents.send('toggle-recording', isRecording);
   edgeTabWindow.webContents.send('processing-state', isProcessing);
+  edgeTabWindow.webContents.send('collapsed-appearance', {
+    bgOpacity: grammarFloatBgOpacityOrDefault(),
+    fabScale: getFabScaleOrDefault()
+  });
   return true;
 });
 

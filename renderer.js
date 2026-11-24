@@ -217,6 +217,7 @@ const elements = {
 
   // Appearance
   bgOpacitySlider: document.getElementById('bg-opacity-slider'),
+  fabScaleSlider: document.getElementById('fab-scale-slider'),
   hotkeyHint: document.getElementById('hotkey-hint'),
   assistantEnabledToggle: document.getElementById('assistant-enabled-toggle'),
   assistantEnabledToggleSettings: document.getElementById('assistant-enabled-toggle-settings'),
@@ -540,6 +541,9 @@ async function loadSettings() {
   if (elements.bgOpacitySlider) elements.bgOpacitySlider.value = opacity;
   applyAppearance(opacity);
 
+  const fabScale = state.settings.fabScale !== undefined ? state.settings.fabScale : 1;
+  if (elements.fabScaleSlider) elements.fabScaleSlider.value = fabScale;
+
   if (state.settings.version) {
     const vt = document.getElementById('settings-version-text');
     if (vt) vt.textContent = `VoxFab AI v${state.settings.version}`;
@@ -727,6 +731,11 @@ function setupEventListeners() {
   if (elements.bgOpacitySlider) {
     elements.bgOpacitySlider.addEventListener('input', () => {
       applyAppearance(elements.bgOpacitySlider.value);
+      saveQuickSettings();
+    });
+  }
+  if (elements.fabScaleSlider) {
+    elements.fabScaleSlider.addEventListener('input', () => {
       saveQuickSettings();
     });
   }
@@ -2599,6 +2608,9 @@ async function saveQuickSettings() {
     autoDetectLanguage: elements.autoDetectToggle.checked,
     translateToEnglish: elements.translateToggle.checked,
     bgOpacity: parseFloat(elements.bgOpacitySlider.value),
+    fabScale: elements.fabScaleSlider
+      ? parseFloat(elements.fabScaleSlider.value) || 1
+      : state.settings.fabScale || 1,
     assistantEnabled: elements.assistantEnabledToggleSettings
       ? elements.assistantEnabledToggleSettings.checked
       : elements.assistantEnabledToggle

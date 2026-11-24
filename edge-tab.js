@@ -119,6 +119,23 @@ expandBtn.addEventListener('click', (e) => {
   window.electronAPI.exitMiniMode();
 });
 
+function applyCollapsedAppearance(payload) {
+  if (!payload) return;
+  if (payload.bgOpacity !== undefined) {
+    const op = Math.max(0.05, Math.min(1, parseFloat(payload.bgOpacity) || 1));
+    document.documentElement.style.opacity = String(op);
+  }
+}
+
+if (typeof window.electronAPI.getSettings === 'function') {
+  window.electronAPI.getSettings().then((s) => {
+    if (s) applyCollapsedAppearance({ bgOpacity: s.bgOpacity, fabScale: s.fabScale });
+  }).catch(() => {});
+}
+if (typeof window.electronAPI.onCollapsedAppearance === 'function') {
+  window.electronAPI.onCollapsedAppearance(applyCollapsedAppearance);
+}
+
 // ---- State from main ----
 window.electronAPI.onEdgeTabEdge(setEdge);
 window.electronAPI.onToggleRecording((recording) => {

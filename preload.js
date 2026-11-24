@@ -72,6 +72,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAppToast: (callback) => {
     ipcRenderer.on('app-toast', (_event, payload) => callback(payload));
   },
+  onCollapsedAppearance: (callback) => {
+    ipcRenderer.on('collapsed-appearance', (_event, payload) => callback(payload));
+  },
   
   // Custom Window Dragging (for cursor support on Windows)
   startDrag: (offset) => ipcRenderer.send('window-drag-start', offset),
