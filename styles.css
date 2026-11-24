@@ -1701,7 +1701,11 @@ input[type="range"]:active::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+}
+
+.setting-label-row .toggle-switch {
+  flex-shrink: 0;
 }
 
 .mic-refresh-btn {

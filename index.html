@@ -388,30 +388,36 @@
         </div>
 
         <div class="setting-group">
-          <label class="setting-label">Live transcription preview</label>
+          <div class="setting-label-row">
+            <label class="setting-label" for="live-preview-toggle-settings">Live transcription preview</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="live-preview-toggle-settings">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-description">Update the text box while you record (uses your speech engine periodically; cloud engines use extra API calls).</div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="live-preview-toggle-settings">
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <div class="setting-group">
-          <label class="setting-label">Clean up dictation</label>
+          <div class="setting-label-row">
+            <label class="setting-label" for="cleanup-toggle-settings">Clean up dictation</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cleanup-toggle-settings">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-description">Before pasting, rewrite what you said into clean sentences: drops fillers, slips and off-topic asides, fixes broken sentences, and turns dictated "one, two, three" into a numbered list. Needs your OpenAI API key.</div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="cleanup-toggle-settings">
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <div class="setting-group">
-          <label class="setting-label">Interface sounds</label>
+          <div class="setting-label-row">
+            <label class="setting-label" for="ui-sounds-toggle-settings">Interface sounds</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="ui-sounds-toggle-settings" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-description">Play short sounds when recording starts and stops, and when the floating assistant opens.</div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="ui-sounds-toggle-settings" checked>
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <!-- API Keys -->
@@ -433,21 +439,25 @@
 
 
         <div class="setting-group" id="assistant-enabled-settings-group">
-          <label class="setting-label">Writing Assistant</label>
+          <div class="setting-label-row">
+            <label class="setting-label" for="assistant-enabled-toggle-settings">Writing Assistant</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="assistant-enabled-toggle-settings" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-description">Enable or disable AI Assistant features and global shortcuts (Ctrl+Shift+E).</div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="assistant-enabled-toggle-settings" checked>
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <div class="setting-group">
-          <label class="setting-label">Resizable assistant window</label>
+          <div class="setting-label-row">
+            <label class="setting-label" for="grammar-float-resizable-toggle">Resizable assistant window</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="grammar-float-resizable-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-description">Drag the window edges or corners to resize; the window also shrinks to fit content when it updates.</div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="grammar-float-resizable-toggle" checked>
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <!-- Appearance -->
@@ -463,22 +473,26 @@
 
         <!-- Auto-Detect (Duplicate for settings) -->
         <div class="setting-group">
-          <label class="setting-label">Auto-Detect Language</label>
+          <div class="setting-label-row">
+            <label class="setting-label" for="auto-detect-toggle-settings">Auto-Detect Language</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="auto-detect-toggle-settings">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-description">Automatically identify the spoken language</div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="auto-detect-toggle-settings">
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <!-- Translate (Duplicate for settings) -->
         <div class="setting-group">
-          <label class="setting-label">Translate to English</label>
+          <div class="setting-label-row">
+            <label class="setting-label" for="translate-toggle-settings">Translate to English</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="translate-toggle-settings">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-description">Always output in English</div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="translate-toggle-settings">
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <!-- Manual Language -->
@@ -499,7 +513,7 @@
         </div>
 
         <div class="setting-group setting-version" style="margin-top: 24px; text-align: center; opacity: 0.5; font-size: 11px;">
-          <span id="settings-version-text">VoxFab AI v1.3.7</span>
+          <span id="settings-version-text">VoxFab AI v1.3.8</span>
         </div>
 
         </div>
