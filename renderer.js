@@ -2254,7 +2254,11 @@ function updateEngineBadge() {
     'google-cloud': 'Google Cloud'
   };
   if (elements.engineName) {
-    elements.engineName.textContent = names[state.engine] || state.engine;
+    elements.engineName.textContent = 'Settings';
+  }
+  if (elements.settingsToggle) {
+    const engineLabel = names[state.engine] || state.engine;
+    elements.settingsToggle.title = `Settings (${engineLabel})`;
   }
 }
 
