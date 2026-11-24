@@ -42,11 +42,13 @@
       "icon": "assets/icon.ico",
       "signAndEditExecutable": false
     },
+    "afterPack": "scripts/after-pack-icon.js",
     "nsisWeb": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
+      "createDesktopShortcut": false,
       "createStartMenuShortcut": true,
+      "include": "build/installer.nsh",
       "artifactName": "VoxFab-AI-Web-Setup-${version}.${ext}",
       "appPackageUrl": "https://github.com/icelanderus/VoxFab-AI/releases/download/v${version}"
     },
@@ -62,6 +64,9 @@
       "!**/node_modules/openai/**",
       "!**/node_modules/**/*.map",
       "!**/node_modules/**/*.d.ts",
+      "!build/**",
+      "!scripts/after-pack-icon.js",
+      "!scripts/patch-icon-v2.js",
       "!dist",
       "!dist-final",
       "!release",

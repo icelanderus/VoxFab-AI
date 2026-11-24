@@ -175,6 +175,12 @@ const elements = {
 
   // Settings
   settingsToggle: document.getElementById('settings-toggle'),
+  updateBadgeBtn: document.getElementById('update-badge-btn'),
+  updateBadgeText: document.getElementById('update-badge-text'),
+  updateBanner: document.getElementById('update-banner'),
+  updateBannerTitle: document.getElementById('update-banner-title'),
+  updateBannerSub: document.getElementById('update-banner-sub'),
+  updateBannerCta: document.getElementById('update-banner-cta'),
   settingsPanel: document.getElementById('settings-panel'),
   settingsBack: document.getElementById('settings-back'),
   mainContent: document.getElementById('main-content'),
@@ -478,6 +484,76 @@ async function init() {
       showToast(message, t, { duration: type === 'warning' ? 5500 : 4000 });
     });
   }
+
+  // Listen for 6-hour GitHub update notifications
+  if (typeof window.electronAPI.onUpdateAvailable === 'function') {
+    window.electronAPI.onUpdateAvailable((info) => {
+      applyUpdateInfoToUI(info);
+    });
+  }
+  if (typeof window.electronAPI.onUpdateDownloadProgress === 'function') {
+    window.electronAPI.onUpdateDownloadProgress(({ percent, status }) => {
+      if (elements.updateBannerSub && status) {
+        elements.updateBannerSub.textContent = status;
+      }
+      if (elements.updateBannerCta && typeof percent === 'number') {
+        elements.updateBannerCta.textContent = percent > 0 && percent < 100 ? `${percent}%` : 'Installing…';
+      }
+    });
+  }
+  if (typeof window.electronAPI.getUpdateInfo === 'function') {
+    window.electronAPI.getUpdateInfo().then((info) => {
+      if (info) applyUpdateInfoToUI(info);
+    }).catch(() => {});
+  }
+}
+
+function applyUpdateInfoToUI(info) {
+  const available = !!(info && info.available);
+  if (elements.updateBadgeBtn) {
+    elements.updateBadgeBtn.classList.toggle('hidden', !available);
+    if (available && info.latestVersion) {
+      elements.updateBadgeBtn.title = `Update available (v${info.latestVersion}) — click to open Settings`;
+    }
+  }
+  if (elements.updateBanner) {
+    elements.updateBanner.classList.toggle('hidden', !available);
+  }
+  if (available) {
+    if (elements.updateBannerTitle) {
+      elements.updateBannerTitle.textContent = info.latestVersion
+        ? `Update available — v${info.latestVersion}`
+        : 'Update available';
+    }
+    if (elements.updateBannerSub) {
+      elements.updateBannerSub.textContent = 'Click to download and install the new version';
+    }
+    if (elements.updateBannerCta) {
+      elements.updateBannerCta.textContent = 'Install';
+    }
+  }
+}
+
+async function triggerUpdateDownloadAndInstall() {
+  if ( typeof window.electronAPI.downloadAndInstallUpdate !== 'function') return;
+  if (elements.updateBanner) elements.updateBanner.disabled = true;
+  if (elements.updateBannerCta) elements.updateBannerCta.textContent = 'Downloading…';
+  if (elements.updateBannerSub) elements.updateBannerSub.textContent = 'Downloading latest release from GitHub…';
+  try {
+    const res = await window.electronAPI.downloadAndInstallUpdate();
+    if (!res || !res.ok) {
+      showToast((res && res.error) || 'Failed to download update.', 'error');
+      if (elements.updateBannerCta) elements.updateBannerCta.textContent = 'Retry';
+      if (elements.updateBannerSub) elements.updateBannerSub.textContent = 'Click to try again';
+    } else if (res.openedExternal) {
+      showToast('Opened GitHub Release page in browser.', 'success');
+      if (elements.updateBannerCta) elements.updateBannerCta.textContent = 'Install';
+    } else {
+      showToast('Launching installer…', 'success');
+    }
+  } finally {
+    if (elements.updateBanner) elements.updateBanner.disabled = false;
+  }
 }
 
 function syncAssistantEnabledToggles(enabled) {
@@ -603,6 +679,18 @@ function setupEventListeners() {
   if (elements.dockTabBtn) elements.dockTabBtn.addEventListener('click', () => window.electronAPI.enterEdgeTabMode());
   // Settings
   if (elements.settingsToggle) elements.settingsToggle.addEventListener('click', toggleSettings);
+  if (elements.updateBadgeBtn) {
+    elements.updateBadgeBtn.addEventListener('click', () => {
+      if (!elements.settingsPanel.classList.contains('visible')) {
+        toggleSettings();
+      }
+    });
+  }
+  if (elements.updateBanner) {
+    elements.updateBanner.addEventListener('click', () => {
+      triggerUpdateDownloadAndInstall().catch(console.error);
+    });
+  }
   if (elements.settingsBack) elements.settingsBack.addEventListener('click', toggleSettings);
   if (elements.aboutBtn) elements.aboutBtn.addEventListener('click', toggleAbout);
   if (elements.aboutBack) elements.aboutBack.addEventListener('click', toggleAbout);

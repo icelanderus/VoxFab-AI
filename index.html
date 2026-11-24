@@ -73,13 +73,23 @@
       <div class="status-bar">
         <div class="status-dot" id="status-dot"></div>
         <span class="status-text" id="status-text">Ready</span>
-        <button class="engine-badge" id="settings-toggle" title="Settings">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-          <span id="engine-name">Settings</span>
-        </button>
+        <div class="settings-btn-wrap">
+          <button type="button" class="update-badge-btn hidden" id="update-badge-btn" title="Update available — click to open Settings">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v12"/>
+              <path d="m7 10 5 5 5-5"/>
+              <path d="M5 21h14"/>
+            </svg>
+            <span id="update-badge-text">Update</span>
+          </button>
+          <button class="engine-badge" id="settings-toggle" title="Settings">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <span id="engine-name">Settings</span>
+          </button>
+        </div>
       </div>
 
       <!-- Microphone Button & Waveforms -->
@@ -374,6 +384,24 @@
 
       <div class="settings-body">
         <div class="settings-scroll">
+        <!-- Update Available Banner -->
+        <button type="button" class="update-banner hidden" id="update-banner">
+          <div class="update-banner-left">
+            <div class="update-banner-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v12"/>
+                <path d="m7 10 5 5 5-5"/>
+                <path d="M5 21h14"/>
+              </svg>
+            </div>
+            <div class="update-banner-info">
+              <span class="update-banner-title" id="update-banner-title">Update available</span>
+              <span class="update-banner-sub" id="update-banner-sub">Click to download and install the latest version</span>
+            </div>
+          </div>
+          <span class="update-banner-cta" id="update-banner-cta">Update</span>
+        </button>
+
         <!-- Microphone / Input Device -->
         <div class="setting-group" id="mic-device-group">
           <div class="setting-label-row">

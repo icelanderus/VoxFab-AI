@@ -2340,6 +2340,167 @@ ipcMain.handle('is-accessibility-trusted', () => {
   return systemPreferences.isTrustedAccessibilityClient(false);
 });
 
+// ============================================
+// GitHub Release Auto-Update Checker (Every 6 Hours)
+// ============================================
+const GITHUB_LATEST_RELEASE_URL = 'https://api.github.com/repos/icelanderus/VoxFab-AI/releases/latest';
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+let latestUpdateInfo = {
+  available: false,
+  currentVersion: app.getVersion(),
+  latestVersion: app.getVersion(),
+  downloadUrl: '',
+  assetName: '',
+  htmlUrl: 'https://github.com/icelanderus/VoxFab-AI/releases/latest'
+};
+let updateCheckTimer = null;
+let updateDownloading = false;
+
+function parseSemverTuple(ver) {
+  const clean = String(ver || '')
+    .trim()
+    .replace(/^v/i, '')
+    .split('-')[0];
+  const parts = clean.split('.').map((n) => parseInt(n, 10) || 0);
+  return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+}
+
+function isNewerSemver(candidate, current) {
+  const [a0, a1, a2] = parseSemverTuple(candidate);
+  const [b0, b1, b2] = parseSemverTuple(current);
+  if (a0 !== b0) return a0 > b0;
+  if (a1 !== b1) return a1 > b1;
+  return a2 > b2;
+}
+
+async function checkForGitHubUpdates() {
+  try {
+    const response = await net.fetch(GITHUB_LATEST_RELEASE_URL, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': `VoxFab-AI/${app.getVersion()}`
+      }
+    });
+    if (!response.ok) return latestUpdateInfo;
+    const data = await response.json();
+    const rawTag = String(data.tag_name || data.name || '').trim();
+    const latestVersion = rawTag.replace(/^v/i, '');
+    const currentVersion = app.getVersion();
+    const available = !!latestVersion && isNewerSemver(latestVersion, currentVersion);
+
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+    let pickedAsset = null;
+    if (process.platform === 'win32') {
+      pickedAsset =
+        assets.find((a) => /Web-Setup.*\.exe$/i.test(a.name)) ||
+        assets.find((a) => /\.exe$/i.test(a.name));
+    } else if (process.platform === 'darwin') {
+      const archPattern = process.arch === 'arm64' ? /arm64|apple-silicon/i : /x64|intel/i;
+      pickedAsset =
+        assets.find((a) => /\.dmg$/i.test(a.name) && archPattern.test(a.name)) ||
+        assets.find((a) => /\.dmg$/i.test(a.name));
+    }
+
+    latestUpdateInfo = {
+      available,
+      currentVersion,
+      latestVersion: latestVersion || currentVersion,
+      downloadUrl: pickedAsset ? pickedAsset.browser_download_url : '',
+      assetName: pickedAsset ? pickedAsset.name : '',
+      htmlUrl: data.html_url || 'https://github.com/icelanderus/VoxFab-AI/releases/latest'
+    };
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-available', latestUpdateInfo);
+    }
+  } catch (err) {
+    console.warn('Update check failed:', err && err.message);
+  }
+  return latestUpdateInfo;
+}
+
+function startUpdateCheckLoop() {
+  if (updateCheckTimer) clearInterval(updateCheckTimer);
+  setTimeout(() => {
+    checkForGitHubUpdates().catch(() => {});
+  }, 3500);
+  updateCheckTimer = setInterval(() => {
+    checkForGitHubUpdates().catch(() => {});
+  }, UPDATE_CHECK_INTERVAL_MS);
+}
+
+ipcMain.handle('check-for-updates', async () => {
+  return await checkForGitHubUpdates();
+});
+
+ipcMain.handle('get-update-info', () => {
+  return latestUpdateInfo;
+});
+
+ipcMain.handle('download-and-install-update', async () => {
+  if (updateDownloading) return { ok: false, error: 'Download already in progress' };
+  if (!latestUpdateInfo.available) {
+    await checkForGitHubUpdates();
+  }
+  const url = latestUpdateInfo.downloadUrl;
+  if (!url) {
+    await shell.openExternal(latestUpdateInfo.htmlUrl || 'https://github.com/icelanderus/VoxFab-AI/releases/latest');
+    return { ok: true, openedExternal: true };
+  }
+
+  updateDownloading = true;
+  const sendProgress = (percent, status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-download-progress', { percent, status });
+    }
+  };
+
+  try {
+    sendProgress(5, 'Downloading update…');
+    const res = await net.fetch(url, {
+      headers: { 'User-Agent': `VoxFab-AI/${app.getVersion()}` }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const arrayBuffer = await res.arrayBuffer();
+    const buf = Buffer.from(arrayBuffer);
+    const safeName =
+      latestUpdateInfo.assetName ||
+      (process.platform === 'win32'
+        ? `VoxFab-AI-Web-Setup-${latestUpdateInfo.latestVersion}.exe`
+        : `VoxFab-AI-${latestUpdateInfo.latestVersion}.dmg`);
+    const destPath = path.join(app.getPath('temp'), safeName);
+    fs.writeFileSync(destPath, buf);
+    sendProgress(100, 'Launching installer…');
+
+    if (process.platform === 'win32') {
+      const child = spawn(destPath, [], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.removeAllListeners('close');
+        }
+        app.quit();
+      }, 450);
+      return { ok: true };
+    }
+
+    await shell.openPath(destPath);
+    return { ok: true };
+  } catch (err) {
+    console.error('Update download/install failed:', err);
+    sendProgress(0, 'Update failed');
+    return { ok: false, error: err.message || 'Could not download update' };
+  } finally {
+    updateDownloading = false;
+  }
+});
+
 /** Installed .app is a different macOS identity than `npm run dev` (Electron / Terminal). Auto-paste needs Accessibility ON for VoxFab AI. */
 function promptPackagedMacAccessibilityIfNeeded() {
   if (process.platform !== 'darwin' || !app.isPackaged) return;
@@ -2381,6 +2542,7 @@ app.whenReady().then(() => {
   registerGlobalShortcut();
   startWindowMonitor();
   startGrammarClipboardWatcher();
+  startUpdateCheckLoop();
   promptPackagedMacAccessibilityIfNeeded();
 });
 

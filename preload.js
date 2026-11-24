@@ -75,6 +75,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onCollapsedAppearance: (callback) => {
     ipcRenderer.on('collapsed-appearance', (_event, payload) => callback(payload));
   },
+
+  // Auto-Update Checker (every 6h + manual install)
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  getUpdateInfo: () => ipcRenderer.invoke('get-update-info'),
+  downloadAndInstallUpdate: () => ipcRenderer.invoke('download-and-install-update'),
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on('update-available', (_event, info) => callback(info));
+  },
+  onUpdateDownloadProgress: (callback) => {
+    ipcRenderer.on('update-download-progress', (_event, prog) => callback(prog));
+  },
   
   // Custom Window Dragging (for cursor support on Windows)
   startDrag: (offset) => ipcRenderer.send('window-drag-start', offset),
