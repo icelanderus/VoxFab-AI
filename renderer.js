@@ -223,6 +223,7 @@ const elements = {
   grammarFloatResizableToggle: document.getElementById('grammar-float-resizable-toggle'),
   livePreviewToggleSettings: document.getElementById('live-preview-toggle-settings'),
   uiSoundsToggleSettings: document.getElementById('ui-sounds-toggle-settings'),
+  cleanupToggle: document.getElementById('cleanup-toggle'),
   cleanupToggleSettings: document.getElementById('cleanup-toggle-settings'),
   micDeviceSelect: document.getElementById('mic-device-select'),
   micRefreshBtn: document.getElementById('mic-refresh-btn'),
@@ -525,8 +526,12 @@ async function loadSettings() {
   if (elements.uiSoundsToggleSettings) {
     elements.uiSoundsToggleSettings.checked = state.settings.uiSoundsEnabled !== false;
   }
+  const cleanupOn = state.settings.dictationCleanupEnabled === true;
+  if (elements.cleanupToggle) {
+    elements.cleanupToggle.checked = cleanupOn;
+  }
   if (elements.cleanupToggleSettings) {
-    elements.cleanupToggleSettings.checked = state.settings.dictationCleanupEnabled === true;
+    elements.cleanupToggleSettings.checked = cleanupOn;
   }
   updateWritingAssistantButtonVisibility();
 
@@ -633,8 +638,21 @@ function setupEventListeners() {
   if (elements.uiSoundsToggleSettings) {
     elements.uiSoundsToggleSettings.addEventListener('change', saveQuickSettings);
   }
+  if (elements.cleanupToggle) {
+    elements.cleanupToggle.addEventListener('change', () => {
+      if (elements.cleanupToggleSettings) {
+        elements.cleanupToggleSettings.checked = elements.cleanupToggle.checked;
+      }
+      saveQuickSettings();
+    });
+  }
   if (elements.cleanupToggleSettings) {
-    elements.cleanupToggleSettings.addEventListener('change', saveQuickSettings);
+    elements.cleanupToggleSettings.addEventListener('change', () => {
+      if (elements.cleanupToggle) {
+        elements.cleanupToggle.checked = elements.cleanupToggleSettings.checked;
+      }
+      saveQuickSettings();
+    });
   }
   if (elements.micDeviceSelect) {
     elements.micDeviceSelect.addEventListener('change', async () => {
@@ -2597,7 +2615,9 @@ async function saveQuickSettings() {
       : state.settings.uiSoundsEnabled !== false,
     dictationCleanupEnabled: elements.cleanupToggleSettings
       ? elements.cleanupToggleSettings.checked
-      : state.settings.dictationCleanupEnabled === true,
+      : elements.cleanupToggle
+        ? elements.cleanupToggle.checked
+        : state.settings.dictationCleanupEnabled === true,
     micDeviceId: elements.micDeviceSelect
       ? elements.micDeviceSelect.value || 'default'
       : state.settings.micDeviceId || 'default'
