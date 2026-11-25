@@ -1808,27 +1808,26 @@ input[type="range"]:active::-webkit-slider-thumb {
 }
 
 .update-badge-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 12px;
-  background: var(--accent-gradient);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #ffffff;
+  gap: 5px;
   font-family: inherit;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-gradient);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 0 12px rgba(0, 212, 255, 0.35);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: all var(--transition-fast);
+  outline: none;
   -webkit-app-region: no-drag;
 }
 
 .update-badge-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 16px rgba(0, 212, 255, 0.55);
+  filter: brightness(1.1);
+  border-color: var(--accent-cyan);
 }
 
 .update-badge-btn.hidden {
