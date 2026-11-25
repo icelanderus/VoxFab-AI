@@ -230,20 +230,30 @@ html.platform-darwin .title-bar {
   flex: 1;
 }
 
-.engine-badge {
-  display: flex;
+.engine-badge,
+.update-badge-btn {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
+  height: 22px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 10px;
   font-weight: 500;
-  padding: 3px 10px;
+  line-height: 1;
   border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--glass-border);
-  color: var(--text-dim);
   cursor: pointer;
   transition: all var(--transition-fast);
   outline: none;
+  -webkit-app-region: no-drag;
+}
+
+.engine-badge {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
 }
 
 .engine-badge:hover {
@@ -1808,21 +1818,9 @@ input[type="range"]:active::-webkit-slider-thumb {
 }
 
 .update-badge-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
   background: var(--accent-gradient);
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #ffffff;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  outline: none;
-  -webkit-app-region: no-drag;
 }
 
 .update-badge-btn:hover {
